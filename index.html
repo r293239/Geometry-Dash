@@ -879,6 +879,11 @@
 
         // Game loop
         function gameLoop() {
+            // Ensure canvas is properly sized
+            if (canvas.width === 0 || canvas.height === 0) {
+                resizeCanvas();
+            }
+
             if (gameState === 'playing') {
                 updatePlayer();
                 checkCollisions();
@@ -888,8 +893,10 @@
             // Clear and draw
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
+            // Always draw background
+            drawBackground();
+            
             if (gameState === 'playing') {
-                drawBackground();
                 drawPlatforms();
                 drawObstacles();
                 drawCoins();
@@ -1006,5 +1013,25 @@
 
         setInterval(handleContinuousInput, 16); // 60 FPS
 
-        // Start game loop
-        gameLoop();
+        // Make functions global for HTML onclick handlers
+        window.startGame = startGame;
+        window.restartGame = restartGame;
+        window.backToMenu = backToMenu;
+        window.togglePracticeMode = togglePracticeMode;
+            // Set initial player position
+            player.y = canvas.height - 130;
+            player.groundY = canvas.height - 100;
+            
+            // Start game loop
+            gameLoop();
+        }
+
+        // Start when page loads
+        window.addEventListener('load', initGame);
+        
+        // Also start immediately in case load already fired
+        if (document.readyState === 'complete') {
+            initGame();
+        } else {
+            initGame();
+        }
