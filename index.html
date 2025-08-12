@@ -92,147 +92,265 @@
         let gameRunning = true;
         let attempt = 1;
         let cameraX = 0;
-        let gameSpeed = 5;
+        let gameSpeed = 6; // Slightly faster for authentic feel
         
-        // Player
+        // Block size - authentic GD grid system (1 unit = 30px)
+        const BLOCK_SIZE = 30;
+        
+        // Player - proper GD cube size
         const player = {
-            x: 150,
-            y: canvas.height - 200,
-            width: 30,
-            height: 30,
+            x: 100,
+            y: canvas.height - BLOCK_SIZE * 4, // Start on ground level
+            width: BLOCK_SIZE,
+            height: BLOCK_SIZE,
             velY: 0,
             jumping: false,
             onGround: true,
             rotation: 0,
-            mode: 'cube' // cube or ship
+            mode: 'cube',
+            gravity: 0.8,
+            jumpPower: -16 // Exactly 3 blocks high
         };
         
-        // Ground level - standard 30px blocks
-        const blockSize = 30;
-        const groundY = canvas.height - blockSize * 3; // 3 blocks from bottom
+        // Ground level calculation
+        const groundY = canvas.height - BLOCK_SIZE * 2;
         
         // Obstacles array
         const obstacles = [];
         
         // Create authentic Stereo Madness level layout
         function createLevel() {
-            obstacles.length = 0; // Clear existing obstacles
+            obstacles.length = 0;
             
-            let x = 400;
-            const blockH = blockSize;
-            const spikeH = blockSize;
+            let x = 400; // Start position
+            const B = BLOCK_SIZE; // Shorthand
             
-            // CUBE SECTION 1 (0% - 29%)
+            // === CUBE SECTION 1 (0% - 29%) ===
             
-            // Opening - single spike
-            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 4;
+            // Opening spikes (0-3%)
+            addSpike(x); x += B * 4;
+            addSpike(x); x += B * 3;
+            addSpike(x); x += B * 4;
             
-            // Another single spike  
-            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 3;
+            // First staircase (4-block ascending)
+            for(let i = 0; i < 4; i++) {
+                addBlock(x + i * B, groundY - B * (i + 1));
+            } x += B * 6;
             
-            // Block obstacle (jump onto it)
-            obstacles.push({type: 'block', x: x, y: groundY - blockH, width: blockSize, height: blockH}); x += blockSize * 4;
+            // Single spike after staircase
+            addSpike(x); x += B * 4;
             
-            // Single spike after block
-            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 2;
+            // Another spike
+            addSpike(x); x += B * 3;
             
-            // THE FAMOUS TRIPLE SPIKE PATTERN (iconic Stereo Madness moment)
-            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH});
-            obstacles.push({type: 'spike', x: x + blockSize, y: groundY - spikeH, width: blockSize, height: spikeH});
-            obstacles.push({type: 'spike', x: x + blockSize * 2, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 6;
+            // Two spikes close together
+            addSpike(x);
+            addSpike(x + B); x += B * 5;
             
-            // More single spikes with proper spacing
-            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 4;
-            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 3;
+            // Descending staircase (4-block descending)
+            for(let i = 0; i < 4; i++) {
+                addBlock(x + i * B, groundY - B * (4 - i));
+            } x += B * 6;
             
-            // Two blocks in a row (staircase start)
-            obstacles.push({type: 'block', x: x, y: groundY - blockH, width: blockSize, height: blockH});
-            obstacles.push({type: 'block', x: x + blockSize, y: groundY - blockH * 2, width: blockSize, height: blockH}); x += blockSize * 5;
+            // Single jump
+            addSpike(x); x += B * 4;
             
-            // Spike after staircase
-            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 4;
+            // Platform sequence
+            addPlatform(x, groundY - B * 3, B * 2);
+            x += B * 5;
+            addSpike(x); x += B * 3;
             
-            // Platform jump sequence (classic GD pattern)
-            obstacles.push({type: 'platform', x: x, y: groundY - blockH * 3, width: blockSize * 2, height: blockH}); x += blockSize * 5;
-            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 3;
+            // Another platform
+            addPlatform(x, groundY - B * 4, B * 2);
+            x += B * 5;
             
-            // SHIP SECTION 1 marker (29% - 46%)
-            obstacles.push({type: 'ship_portal', x: x, y: groundY - blockH, width: blockSize, height: blockH * 2}); x += blockSize * 2;
+            // More spikes leading to ship
+            addSpike(x); x += B * 3;
+            addSpike(x); x += B * 4;
+            addSpike(x); x += B * 3;
+            
+            // === SHIP PORTAL (29%) ===
+            addShipPortal(x); x += B * 3;
+            
+            // === SHIP SECTION 1 (29% - 46%) ===
             
             // Ship obstacles - blocks and ceiling spikes
-            for(let i = 0; i < 8; i++) {
-                if(i % 2 === 0) {
-                    obstacles.push({type: 'block', x: x + i * blockSize * 2, y: groundY - blockH * 3, width: blockSize, height: blockH});
+            for(let i = 0; i < 12; i++) {
+                const spacing = B * 3;
+                const currentX = x + i * spacing;
+                
+                if(i % 3 === 0) {
+                    // Floor blocks
+                    addBlock(currentX, groundY - B * 2);
+                    addBlock(currentX, groundY - B);
                 }
                 if(i % 3 === 1) {
-                    obstacles.push({type: 'spike_down', x: x + i * blockSize * 2, y: blockSize * 2, width: blockSize, height: spikeH});
-                }
-            } x += blockSize * 16;
-            
-            // Back to CUBE marker (46%)
-            obstacles.push({type: 'cube_portal', x: x, y: groundY - blockH, width: blockSize, height: blockH * 2}); x += blockSize * 2;
-            
-            // CUBE SECTION 2 (46% - 85%) - Harder patterns
-            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 2;
-            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 3;
-            
-            // Double spike pattern
-            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH});
-            obstacles.push({type: 'spike', x: x + blockSize, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 5;
-            
-            // Block staircase (step pattern)
-            for(let i = 0; i < 4; i++) {
-                obstacles.push({type: 'block', x: x + i * blockSize, y: groundY - blockH * (i + 1), width: blockSize, height: blockH});
-            } x += blockSize * 7;
-            
-            // More challenging spikes
-            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 3;
-            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 2;
-            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 4;
-            
-            // FINAL SHIP SECTION marker (85% - 100%)
-            obstacles.push({type: 'ship_portal', x: x, y: groundY - blockH, width: blockSize, height: blockH * 2}); x += blockSize * 2;
-            
-            // Final ship challenge - more dense obstacles
-            for(let i = 0; i < 10; i++) {
-                if(i % 2 === 0) {
-                    obstacles.push({type: 'block', x: x + i * blockSize * 1.5, y: groundY - blockH * 4 + Math.sin(i) * blockH, width: blockSize, height: blockH});
-                }
-                if(i % 3 === 1) {
-                    obstacles.push({type: 'spike_down', x: x + i * blockSize * 1.5, y: blockSize * 2, width: blockSize, height: spikeH});
+                    // Ceiling spikes
+                    addCeilingSpike(currentX, B * 2);
                 }
                 if(i % 4 === 2) {
-                    obstacles.push({type: 'spike', x: x + i * blockSize * 1.5, y: groundY - spikeH * 2, width: blockSize, height: spikeH});
+                    // Middle blocks
+                    addBlock(currentX, groundY - B * 4);
                 }
             }
+            x += B * 36;
+            
+            // === CUBE PORTAL (46%) ===
+            addCubePortal(x); x += B * 3;
+            
+            // === CUBE SECTION 2 (46% - 85%) ===
+            
+            // More challenging cube section
+            addSpike(x); x += B * 3;
+            addSpike(x); x += B * 2;
+            addSpike(x); x += B * 4;
+            
+            // Another staircase (5 blocks)
+            for(let i = 0; i < 5; i++) {
+                addBlock(x + i * B, groundY - B * (i + 1));
+            } x += B * 7;
+            
+            // Double spike
+            addSpike(x);
+            addSpike(x + B); x += B * 5;
+            
+            // Platform jump
+            addPlatform(x, groundY - B * 3, B * 3);
+            x += B * 6;
+            
+            // Descending blocks
+            for(let i = 0; i < 3; i++) {
+                addBlock(x + i * B, groundY - B * (3 - i));
+            } x += B * 5;
+            
+            // Triple spike (challenging part)
+            addSpike(x);
+            addSpike(x + B);
+            addSpike(x + B * 2); x += B * 6;
+            
+            // More spikes
+            addSpike(x); x += B * 3;
+            addSpike(x); x += B * 4;
+            addSpike(x); x += B * 3;
+            
+            // === FINAL SHIP PORTAL (85%) ===
+            addShipPortal(x); x += B * 3;
+            
+            // === FINAL SHIP SECTION (85% - 100%) ===
+            
+            // More challenging ship section
+            for(let i = 0; i < 15; i++) {
+                const spacing = B * 2.5;
+                const currentX = x + i * spacing;
+                
+                if(i % 2 === 0) {
+                    // Alternating floor and ceiling obstacles
+                    addBlock(currentX, groundY - B * Math.floor(Math.random() * 3 + 1));
+                }
+                if(i % 3 === 1) {
+                    addCeilingSpike(currentX, B * Math.floor(Math.random() * 2 + 2));
+                }
+                if(i % 4 === 3) {
+                    addSpike(currentX, groundY - B);
+                }
+            }
+            x += B * 40;
+            
+            // Final challenge - narrow passage
+            for(let i = 0; i < 8; i++) {
+                addBlock(x + i * B * 1.5, groundY - B * 3);
+                addCeilingSpike(x + i * B * 1.5, B * 4);
+            }
+        }
+        
+        // Helper functions for creating obstacles
+        function addSpike(x, y = groundY - BLOCK_SIZE) {
+            obstacles.push({
+                type: 'spike',
+                x: x,
+                y: y,
+                width: BLOCK_SIZE,
+                height: BLOCK_SIZE
+            });
+        }
+        
+        function addCeilingSpike(x, y) {
+            obstacles.push({
+                type: 'ceiling_spike',
+                x: x,
+                y: y,
+                width: BLOCK_SIZE,
+                height: BLOCK_SIZE
+            });
+        }
+        
+        function addBlock(x, y) {
+            obstacles.push({
+                type: 'block',
+                x: x,
+                y: y,
+                width: BLOCK_SIZE,
+                height: BLOCK_SIZE
+            });
+        }
+        
+        function addPlatform(x, y, width) {
+            obstacles.push({
+                type: 'platform',
+                x: x,
+                y: y,
+                width: width,
+                height: BLOCK_SIZE
+            });
+        }
+        
+        function addShipPortal(x) {
+            obstacles.push({
+                type: 'ship_portal',
+                x: x,
+                y: groundY - BLOCK_SIZE * 3,
+                width: BLOCK_SIZE,
+                height: BLOCK_SIZE * 3
+            });
+        }
+        
+        function addCubePortal(x) {
+            obstacles.push({
+                type: 'cube_portal',
+                x: x,
+                y: groundY - BLOCK_SIZE * 3,
+                width: BLOCK_SIZE,
+                height: BLOCK_SIZE * 3
+            });
         }
         
         // Initialize level
         createLevel();
         
+        // Calculate total level length for progress
+        const LEVEL_LENGTH = obstacles.length > 0 ? Math.max(...obstacles.map(o => o.x)) + 200 : 3000;
+        
         // Input handling
         let spacePressed = false;
+        let mousePressed = false;
         
         function jump() {
             if (player.mode === 'cube' && player.onGround && gameRunning) {
-                // Authentic GD cube jump - exactly 3 blocks high (2.1333 blocks precisely)
-                player.velY = -15.5; // This gives approximately 3 block jump height
+                player.velY = player.jumpPower;
                 player.jumping = true;
                 player.onGround = false;
             } else if (player.mode === 'ship' && gameRunning) {
-                // Ship mode - continuous thrust
-                player.velY = Math.max(player.velY - 1.2, -12); // Upward thrust with max speed
+                player.velY = Math.max(player.velY - 1.5, -12);
             }
         }
         
         function stopJump() {
             if (player.mode === 'ship') {
                 // Ship falls when not holding
-                // Natural gravity will take over
             }
         }
         
-        // Event listeners - updated for ship mode
+        // Event listeners
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space' && !spacePressed) {
                 e.preventDefault();
@@ -248,7 +366,6 @@
             }
         });
         
-        let mousePressed = false;
         canvas.addEventListener('mousedown', () => {
             mousePressed = true;
             jump();
@@ -260,13 +377,11 @@
         });
         
         // Continuous ship control
-        function handleShipControl() {
+        setInterval(() => {
             if (player.mode === 'ship' && gameRunning && (spacePressed || mousePressed)) {
-                jump(); // Continuous thrust while held
+                jump();
             }
-        }
-        
-        setInterval(handleShipControl, 16); // 60 FPS control
+        }, 16);
         
         // Game loop
         function update() {
@@ -275,20 +390,23 @@
             // Move camera forward
             cameraX += gameSpeed;
             
-            // Check for mode changes based on progress (authentic Stereo Madness)
-            const progress = (cameraX / 3000) * 100;
-            if (progress >= 29 && progress < 46) {
-                player.mode = 'ship';
-            } else if (progress >= 85) {
-                player.mode = 'ship';
-            } else {
-                player.mode = 'cube';
+            // Check for mode changes based on progress
+            const progress = (cameraX / LEVEL_LENGTH) * 100;
+            
+            // Mode switching based on portals
+            for (let obs of obstacles) {
+                const obsScreenX = obs.x - cameraX;
+                if (obs.type === 'ship_portal' && obsScreenX < player.x + player.width && obsScreenX > player.x - BLOCK_SIZE) {
+                    player.mode = 'ship';
+                } else if (obs.type === 'cube_portal' && obsScreenX < player.x + player.width && obsScreenX > player.x - BLOCK_SIZE) {
+                    player.mode = 'cube';
+                }
             }
             
             // Player physics
             if (player.mode === 'cube') {
                 // Cube physics
-                player.velY += 0.7; // gravity for cube
+                player.velY += player.gravity;
                 player.y += player.velY;
                 
                 // Ground collision
@@ -298,7 +416,7 @@
                     player.onGround = true;
                     player.jumping = false;
                     
-                    // Snap rotation to nearest 90 degrees
+                    // Snap rotation
                     player.rotation = Math.round(player.rotation / (Math.PI/2)) * (Math.PI/2);
                 } else {
                     player.onGround = false;
@@ -306,17 +424,17 @@
                 
                 // Rotate cube when jumping
                 if (player.jumping) {
-                    player.rotation += 0.12;
+                    player.rotation += 0.15;
                 }
                 
             } else if (player.mode === 'ship') {
                 // Ship physics
-                player.velY += 0.4; // lighter gravity for ship
+                player.velY += 0.5; // Lighter gravity
                 player.y += player.velY;
                 
                 // Ship boundaries
-                if (player.y < blockSize) {
-                    player.y = blockSize;
+                if (player.y < BLOCK_SIZE) {
+                    player.y = BLOCK_SIZE;
                     player.velY = 0;
                 }
                 if (player.y + player.height >= groundY) {
@@ -324,18 +442,19 @@
                     player.velY = 0;
                 }
                 
-                // Ship rotation based on velocity
-                player.rotation = player.velY * 0.03;
+                // Ship rotation
+                player.rotation = Math.max(-0.3, Math.min(0.3, player.velY * 0.05));
                 player.onGround = false;
             }
             
             // Platform collisions
             for (let obs of obstacles) {
                 if (obs.type === 'platform') {
-                    if (player.x + player.width > obs.x - cameraX && 
-                        player.x < obs.x - cameraX + obs.width &&
+                    const obsScreenX = obs.x - cameraX;
+                    if (player.x + player.width > obsScreenX && 
+                        player.x < obsScreenX + obs.width &&
                         player.y + player.height > obs.y && 
-                        player.y + player.height < obs.y + obs.height + 20 &&
+                        player.y + player.height < obs.y + obs.height + 15 &&
                         player.velY > 0) {
                         
                         player.y = obs.y - player.height;
@@ -346,15 +465,17 @@
                 }
             }
             
-            // Collision detection
+            // Collision detection with obstacles
             for (let obs of obstacles) {
-                if (obs.type === 'spike' || obs.type === 'block' || obs.type === 'spike_down') {
+                if (obs.type === 'spike' || obs.type === 'block' || obs.type === 'ceiling_spike') {
                     const obsScreenX = obs.x - cameraX;
                     
-                    if (player.x + player.width > obsScreenX + 3 && 
-                        player.x < obsScreenX + obs.width - 3 &&
-                        player.y + player.height > obs.y + 3 && 
-                        player.y < obs.y + obs.height - 3) {
+                    // More forgiving collision detection
+                    const margin = 3;
+                    if (player.x + player.width - margin > obsScreenX + margin && 
+                        player.x + margin < obsScreenX + obs.width - margin &&
+                        player.y + player.height - margin > obs.y + margin && 
+                        player.y + margin < obs.y + obs.height - margin) {
                         
                         // Game over
                         gameRunning = false;
@@ -383,7 +504,7 @@
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
             ctx.lineWidth = 1;
             
-            const gridSize = 50;
+            const gridSize = BLOCK_SIZE;
             const offsetX = (-cameraX) % gridSize;
             
             for (let x = offsetX; x < canvas.width; x += gridSize) {
@@ -418,7 +539,7 @@
                 // Only draw if on screen
                 if (x > -obs.width && x < canvas.width) {
                     if (obs.type === 'spike') {
-                        // Draw spike
+                        // Draw upward spike
                         ctx.fillStyle = '#FF0000';
                         ctx.strokeStyle = '#CC0000';
                         ctx.lineWidth = 2;
@@ -427,6 +548,20 @@
                         ctx.moveTo(x, obs.y + obs.height);
                         ctx.lineTo(x + obs.width/2, obs.y);
                         ctx.lineTo(x + obs.width, obs.y + obs.height);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.stroke();
+                        
+                    } else if (obs.type === 'ceiling_spike') {
+                        // Draw downward spike
+                        ctx.fillStyle = '#FF0000';
+                        ctx.strokeStyle = '#CC0000';
+                        ctx.lineWidth = 2;
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(x, obs.y);
+                        ctx.lineTo(x + obs.width/2, obs.y + obs.height);
+                        ctx.lineTo(x + obs.width, obs.y);
                         ctx.closePath();
                         ctx.fill();
                         ctx.stroke();
@@ -448,27 +583,62 @@
                         ctx.strokeStyle = '#999999';
                         ctx.lineWidth = 2;
                         ctx.strokeRect(x, obs.y, obs.width, obs.height);
+                        
+                    } else if (obs.type === 'ship_portal') {
+                        // Draw ship portal
+                        ctx.fillStyle = '#00FFFF';
+                        ctx.fillRect(x, obs.y, obs.width, obs.height);
+                        
+                        ctx.strokeStyle = '#0088AA';
+                        ctx.lineWidth = 3;
+                        ctx.strokeRect(x, obs.y, obs.width, obs.height);
+                        
+                    } else if (obs.type === 'cube_portal') {
+                        // Draw cube portal
+                        ctx.fillStyle = '#FFFF00';
+                        ctx.fillRect(x, obs.y, obs.width, obs.height);
+                        
+                        ctx.strokeStyle = '#CCCC00';
+                        ctx.lineWidth = 3;
+                        ctx.strokeRect(x, obs.y, obs.width, obs.height);
                     }
                 }
             }
             
-            // Draw player (cube)
+            // Draw player
             ctx.save();
             ctx.translate(player.x + player.width/2, player.y + player.height/2);
             ctx.rotate(player.rotation);
             
-            // Yellow cube
-            ctx.fillStyle = '#FFFF00';
-            ctx.fillRect(-player.width/2, -player.height/2, player.width, player.height);
-            
-            // Black outline
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 3;
-            ctx.strokeRect(-player.width/2, -player.height/2, player.width, player.height);
-            
-            // Inner detail
-            ctx.fillStyle = '#FFFF99';
-            ctx.fillRect(-player.width/2 + 5, -player.height/2 + 5, player.width - 10, player.height - 10);
+            if (player.mode === 'cube') {
+                // Yellow cube
+                ctx.fillStyle = '#FFFF00';
+                ctx.fillRect(-player.width/2, -player.height/2, player.width, player.height);
+                
+                // Black outline
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(-player.width/2, -player.height/2, player.width, player.height);
+                
+                // Inner detail
+                ctx.fillStyle = '#FFFF99';
+                ctx.fillRect(-player.width/2 + 4, -player.height/2 + 4, player.width - 8, player.height - 8);
+                
+            } else if (player.mode === 'ship') {
+                // Ship shape
+                ctx.fillStyle = '#00FFFF';
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 2;
+                
+                ctx.beginPath();
+                ctx.moveTo(-player.width/2, 0);
+                ctx.lineTo(player.width/2, -player.height/3);
+                ctx.lineTo(player.width/3, 0);
+                ctx.lineTo(player.width/2, player.height/3);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            }
             
             ctx.restore();
         }
@@ -483,12 +653,13 @@
             gameRunning = true;
             attempt++;
             cameraX = 0;
-            player.x = 150;
-            player.y = canvas.height - 200;
+            player.x = 100;
+            player.y = groundY - player.height;
             player.velY = 0;
             player.rotation = 0;
             player.onGround = true;
             player.jumping = false;
+            player.mode = 'cube';
             
             document.getElementById('attempt').textContent = attempt;
             document.getElementById('gameOver').style.display = 'none';
@@ -498,7 +669,8 @@
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            player.y = canvas.height - 200;
+            const newGroundY = canvas.height - BLOCK_SIZE * 2;
+            player.y = player.y + (newGroundY - groundY);
         });
         
         // Start the game
