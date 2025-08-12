@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geometry Dash Clone</title>
+    <title>Geometry Dash Authentic</title>
     <style>
         * {
             margin: 0;
@@ -12,7 +12,7 @@
         }
 
         body {
-            background: linear-gradient(45deg, #1a1a2e, #16213e);
+            background: #87ceeb;
             font-family: 'Arial', sans-serif;
             overflow: hidden;
             color: white;
@@ -26,7 +26,7 @@
         }
 
         #gameCanvas {
-            background: linear-gradient(180deg, #0f3460 0%, #16213e 50%, #1a1a2e 100%);
+            background: linear-gradient(180deg, #87ceeb 0%, #4682b4 50%, #2f4f4f 100%);
             display: block;
             cursor: pointer;
         }
@@ -38,10 +38,12 @@
             z-index: 10;
         }
 
-        #score {
-            font-size: 24px;
+        #score, #attempts, #percentage {
+            font-size: 20px;
             font-weight: bold;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            color: white;
+            margin: 5px 0;
         }
 
         #instructions {
@@ -51,16 +53,17 @@
             transform: translate(-50%, -50%);
             text-align: center;
             z-index: 10;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.9);
             padding: 30px;
             border-radius: 15px;
-            border: 2px solid #00ffff;
+            border: 3px solid #ffff00;
         }
 
         #instructions h1 {
-            color: #00ffff;
+            color: #ffff00;
             margin-bottom: 20px;
             font-size: 32px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
         }
 
         #instructions p {
@@ -97,7 +100,7 @@
             background: rgba(0,0,0,0.9);
             padding: 30px;
             border-radius: 15px;
-            border: 2px solid #ff6b6b;
+            border: 3px solid #ff6b6b;
             display: none;
         }
 
@@ -110,12 +113,6 @@
         .hidden {
             display: none !important;
         }
-
-        .particle {
-            position: absolute;
-            pointer-events: none;
-            border-radius: 50%;
-        }
     </style>
 </head>
 <body>
@@ -123,31 +120,33 @@
         <canvas id="gameCanvas"></canvas>
         
         <div id="ui">
-            <div id="score">Score: 0</div>
+            <div id="score">0%</div>
+            <div id="attempts">Attempt 1</div>
+            <div id="percentage">Best: 0%</div>
         </div>
 
         <div id="instructions">
-            <h1>🔥 GEOMETRY DASH 🔥</h1>
+            <h1>🎮 GEOMETRY DASH 🎮</h1>
             <p>🎯 Click or press SPACE to jump</p>
-            <p>🚀 Avoid the spikes and obstacles</p>
-            <p>⭐ Collect stars for bonus points</p>
-            <button class="button" onclick="startGame()">START GAME</button>
+            <p>⚠️ Avoid spikes, sawblades, and walls</p>
+            <p>🏃‍♂️ Navigate through the obstacle course</p>
+            <p>🎵 Feel the rhythm!</p>
+            <button class="button" onclick="startGame()">PLAY</button>
+            <button class="button" onclick="togglePracticeMode()">PRACTICE MODE: OFF</button>
         </div>
 
         <div id="gameOver">
             <h2>💀 GAME OVER 💀</h2>
-            <p id="finalScore">Final Score: 0</p>
-            <button class="button" onclick="restartGame()">TRY AGAIN</button>
+            <p id="finalScore">0%</p>
+            <p id="finalAttempts">Attempts: 1</p>
+            <button class="button" onclick="restartGame()">RETRY</button>
+            <button class="button" onclick="backToMenu()">MENU</button>
         </div>
     </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const scoreElement = document.getElementById('score');
-        const instructionsElement = document.getElementById('instructions');
-        const gameOverElement = document.getElementById('gameOver');
-        const finalScoreElement = document.getElementById('finalScore');
 
         // Set canvas size
         function resizeCanvas() {
@@ -158,33 +157,492 @@
         window.addEventListener('resize', resizeCanvas);
 
         // Game variables
-        let gameState = 'menu'; // menu, playing, gameOver
-        let score = 0;
-        let gameSpeed = 5;
-        let particles = [];
+        let gameState = 'menu';
+        let attempts = 1;
+        let bestPercentage = 0;
+        let currentPercentage = 0;
+        let gameSpeed = 6;
+        let practiceMode = false;
+        let checkpoints = [];
+        let currentCheckpoint = -1;
 
-        // Player object
+        // Player object with authentic GD physics
         const player = {
-            x: 100,
-            y: canvas.height - 150,
-            width: 40,
-            height: 40,
+            x: 150,
+            y: 0,
+            width: 30,
+            height: 30,
             velocityY: 0,
-            gravity: 0.8,
-            jumpPower: -15,
+            gravity: 1.0,
+            jumpPower: -17,
             grounded: false,
             rotation: 0,
-            color: '#00ffff',
-            trail: []
+            rotationSpeed: 0.2,
+            onGround: true,
+            groundY: 0
         };
 
-        // Obstacles array
+        // Level data - based on actual GD obstacle patterns
+        let levelLength = 2000; // Level progress units
+        let playerProgress = 0;
         let obstacles = [];
-        let stars = [];
+        let platforms = [];
+        let decorations = [];
 
-        // Audio context for sound effects
+        // Authentic obstacle types from GD
+        const obstacleTypes = {
+            SPIKE_UP: 'spike_up',
+            SPIKE_DOWN: 'spike_down',
+            SPIKE_LEFT: 'spike_left', 
+            SPIKE_RIGHT: 'spike_right',
+            SAWBLADE: 'sawblade',
+            BLOCK: 'block',
+            PLATFORM: 'platform'
+        };
+
+        // Create level based on authentic GD patterns
+        function generateLevel() {
+            obstacles = [];
+            platforms = [];
+            decorations = [];
+            
+            const groundY = canvas.height - 100;
+            
+            // Create ground platforms
+            for (let i = 0; i < levelLength; i += 30) {
+                platforms.push({
+                    x: i,
+                    y: groundY,
+                    width: 30,
+                    height: 30,
+                    type: 'ground'
+                });
+            }
+
+            // Add authentic GD obstacle patterns
+            let currentX = 200;
+            
+            while (currentX < levelLength - 200) {
+                const pattern = Math.floor(Math.random() * 8);
+                
+                switch (pattern) {
+                    case 0: // Single spike
+                        obstacles.push(createSpike(currentX, groundY - 30, 'spike_up'));
+                        currentX += 60;
+                        break;
+                        
+                    case 1: // Triple spikes
+                        for (let i = 0; i < 3; i++) {
+                            obstacles.push(createSpike(currentX + i * 30, groundY - 30, 'spike_up'));
+                        }
+                        currentX += 120;
+                        break;
+                        
+                    case 2: // Sawblade
+                        obstacles.push(createSawblade(currentX, groundY - 60, 40));
+                        currentX += 80;
+                        break;
+                        
+                    case 3: // Platform jump
+                        platforms.push({
+                            x: currentX,
+                            y: groundY - 90,
+                            width: 90,
+                            height: 30,
+                            type: 'platform'
+                        });
+                        obstacles.push(createSpike(currentX + 120, groundY - 30, 'spike_up'));
+                        currentX += 180;
+                        break;
+                        
+                    case 4: // Ceiling spikes
+                        for (let i = 0; i < 4; i++) {
+                            obstacles.push(createSpike(currentX + i * 30, 50, 'spike_down'));
+                        }
+                        currentX += 150;
+                        break;
+                        
+                    case 5: // Wall jump pattern
+                        platforms.push({
+                            x: currentX,
+                            y: groundY - 120,
+                            width: 30,
+                            height: 90,
+                            type: 'wall'
+                        });
+                        obstacles.push(createSpike(currentX + 60, groundY - 30, 'spike_up'));
+                        currentX += 120;
+                        break;
+                        
+                    case 6: // Moving sawblade pattern
+                        obstacles.push({
+                            x: currentX,
+                            y: groundY - 120,
+                            width: 35,
+                            height: 35,
+                            type: 'sawblade',
+                            rotation: 0,
+                            moveY: groundY - 120,
+                            moveRange: 90,
+                            moveSpeed: 0.05,
+                            moveDirection: 1
+                        });
+                        currentX += 90;
+                        break;
+                        
+                    case 7: // Block staircase
+                        for (let i = 0; i < 3; i++) {
+                            platforms.push({
+                                x: currentX + i * 45,
+                                y: groundY - 60 - i * 30,
+                                width: 30,
+                                height: 30,
+                                type: 'block'
+                            });
+                        }
+                        currentX += 180;
+                        break;
+                }
+            }
+
+            // Add practice mode checkpoints
+            if (practiceMode) {
+                for (let i = 300; i < levelLength; i += 300) {
+                    checkpoints.push({
+                        x: i,
+                        y: groundY - 60,
+                        width: 20,
+                        height: 60,
+                        activated: false
+                    });
+                }
+            }
+        }
+
+        function createSpike(x, y, direction) {
+            const spike = {
+                x: x,
+                y: y,
+                width: 30,
+                height: 30,
+                type: direction,
+                hitbox: { x: x + 5, y: y + 5, width: 20, height: 20 }
+            };
+            return spike;
+        }
+
+        function createSawblade(x, y, size) {
+            return {
+                x: x,
+                y: y,
+                width: size,
+                height: size,
+                type: 'sawblade',
+                rotation: 0,
+                hitbox: { x: x + 5, y: y + 5, width: size - 10, height: size - 10 }
+            };
+        }
+
+        // Authentic GD physics
+        function updatePlayer() {
+            // Apply gravity
+            if (!player.onGround) {
+                player.velocityY += player.gravity;
+            }
+            
+            player.y += player.velocityY;
+
+            // Check platform collisions
+            player.onGround = false;
+            player.groundY = canvas.height - 100;
+
+            for (let platform of platforms) {
+                if (platform.x - playerProgress < player.x + player.width &&
+                    platform.x - playerProgress + platform.width > player.x &&
+                    platform.y < player.y + player.height &&
+                    platform.y + platform.height > player.y) {
+                    
+                    if (player.velocityY > 0 && player.y < platform.y) {
+                        // Landing on platform
+                        player.y = platform.y - player.height;
+                        player.velocityY = 0;
+                        player.onGround = true;
+                        player.groundY = platform.y;
+                    }
+                }
+            }
+
+            // Ground collision
+            const groundY = canvas.height - 100;
+            if (player.y + player.height >= groundY) {
+                player.y = groundY - player.height;
+                player.velocityY = 0;
+                player.onGround = true;
+                player.groundY = groundY;
+            }
+
+            // Rotate player cube
+            if (!player.onGround) {
+                player.rotation += player.rotationSpeed;
+            } else {
+                // Snap rotation to nearest 90-degree angle when on ground
+                const targetRotation = Math.round(player.rotation / (Math.PI/2)) * (Math.PI/2);
+                player.rotation += (targetRotation - player.rotation) * 0.3;
+            }
+
+            // Update progress
+            playerProgress += gameSpeed;
+            currentPercentage = Math.floor((playerProgress / levelLength) * 100);
+            
+            // Win condition
+            if (playerProgress >= levelLength) {
+                winLevel();
+            }
+        }
+
+        function updateObstacles() {
+            // Update moving sawblades
+            for (let obstacle of obstacles) {
+                if (obstacle.type === 'sawblade') {
+                    obstacle.rotation += 0.2;
+                    
+                    // Moving sawblade
+                    if (obstacle.moveY !== undefined) {
+                        obstacle.y += obstacle.moveSpeed * obstacle.moveDirection;
+                        if (obstacle.y <= obstacle.moveY - obstacle.moveRange || 
+                            obstacle.y >= obstacle.moveY + obstacle.moveRange) {
+                            obstacle.moveDirection *= -1;
+                        }
+                    }
+                }
+            }
+
+            // Check checkpoint activation in practice mode
+            if (practiceMode) {
+                for (let checkpoint of checkpoints) {
+                    if (!checkpoint.activated && 
+                        checkpoint.x - playerProgress < player.x + player.width &&
+                        checkpoint.x - playerProgress + checkpoint.width > player.x) {
+                        checkpoint.activated = true;
+                        currentCheckpoint = checkpoints.indexOf(checkpoint);
+                    }
+                }
+            }
+        }
+
+        function checkCollisions() {
+            // Check obstacle collisions
+            for (let obstacle of obstacles) {
+                const obsX = obstacle.x - playerProgress;
+                const hitbox = obstacle.hitbox || obstacle;
+                const hitboxX = (obstacle.hitbox ? hitbox.x - playerProgress : obsX);
+                
+                if (hitboxX < player.x + player.width &&
+                    hitboxX + hitbox.width > player.x &&
+                    hitbox.y < player.y + player.height &&
+                    hitbox.y + hitbox.height > player.y) {
+                    
+                    crash();
+                    return;
+                }
+            }
+
+            // Check ceiling collision
+            if (player.y <= 0) {
+                crash();
+                return;
+            }
+        }
+
+        function jump() {
+            if (gameState !== 'playing') return;
+            
+            if (player.onGround) {
+                player.velocityY = player.jumpPower;
+                player.onGround = false;
+                playSound(523, 0.1); // C5 note
+            }
+        }
+
+        function crash() {
+            gameState = 'gameOver';
+            attempts++;
+            if (currentPercentage > bestPercentage) {
+                bestPercentage = currentPercentage;
+            }
+            playSound(150, 0.5, 'sawtooth');
+            showGameOver();
+        }
+
+        function winLevel() {
+            gameState = 'win';
+            if (100 > bestPercentage) {
+                bestPercentage = 100;
+            }
+            alert('Level Complete! 🎉');
+            backToMenu();
+        }
+
+        function respawnAtCheckpoint() {
+            if (currentCheckpoint >= 0) {
+                const checkpoint = checkpoints[currentCheckpoint];
+                playerProgress = checkpoint.x - 100;
+                player.x = 150;
+                player.y = checkpoint.y - player.height;
+                player.velocityY = 0;
+                player.onGround = true;
+                player.rotation = 0;
+            }
+        }
+
+        // Drawing functions
+        function drawBackground() {
+            // Authentic GD background
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#87ceeb');
+            gradient.addColorStop(0.7, '#4682b4');
+            gradient.addColorStop(1, '#2f4f4f');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Grid pattern
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            const gridSize = 30;
+            const offsetX = (-playerProgress) % gridSize;
+            
+            for (let x = offsetX; x < canvas.width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            
+            for (let y = 0; y < canvas.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+        }
+
+        function drawPlayer() {
+            ctx.save();
+            ctx.translate(player.x + player.width/2, player.y + player.height/2);
+            ctx.rotate(player.rotation);
+            
+            // Authentic cube design
+            ctx.fillStyle = '#ffff00';
+            ctx.fillRect(-player.width/2, -player.height/2, player.width, player.height);
+            
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(-player.width/2, -player.height/2, player.width, player.height);
+            
+            // Inner detail
+            ctx.fillStyle = '#ffee00';
+            ctx.fillRect(-player.width/2 + 3, -player.height/2 + 3, player.width - 6, player.height - 6);
+            
+            ctx.restore();
+        }
+
+        function drawPlatforms() {
+            for (let platform of platforms) {
+                const x = platform.x - playerProgress;
+                if (x > -platform.width && x < canvas.width) {
+                    ctx.fillStyle = platform.type === 'ground' ? '#8b4513' : '#666666';
+                    ctx.fillRect(x, platform.y, platform.width, platform.height);
+                    
+                    ctx.strokeStyle = '#000000';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(x, platform.y, platform.width, platform.height);
+                }
+            }
+        }
+
+        function drawObstacles() {
+            for (let obstacle of obstacles) {
+                const x = obstacle.x - playerProgress;
+                if (x > -obstacle.width && x < canvas.width) {
+                    ctx.save();
+                    
+                    if (obstacle.type === 'sawblade') {
+                        // Draw authentic sawblade
+                        ctx.translate(x + obstacle.width/2, obstacle.y + obstacle.height/2);
+                        ctx.rotate(obstacle.rotation);
+                        
+                        ctx.fillStyle = '#ff0000';
+                        ctx.beginPath();
+                        const teeth = 12;
+                        const radius = obstacle.width / 2;
+                        
+                        for (let i = 0; i < teeth; i++) {
+                            const angle = (i / teeth) * Math.PI * 2;
+                            const toothRadius = i % 2 === 0 ? radius : radius * 0.7;
+                            const px = Math.cos(angle) * toothRadius;
+                            const py = Math.sin(angle) * toothRadius;
+                            
+                            if (i === 0) ctx.moveTo(px, py);
+                            else ctx.lineTo(px, py);
+                        }
+                        ctx.closePath();
+                        ctx.fill();
+                        
+                        ctx.strokeStyle = '#000000';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                        
+                    } else if (obstacle.type.includes('spike')) {
+                        // Draw authentic spikes
+                        ctx.fillStyle = '#ff0000';
+                        ctx.strokeStyle = '#000000';
+                        ctx.lineWidth = 2;
+                        
+                        ctx.beginPath();
+                        if (obstacle.type === 'spike_up') {
+                            ctx.moveTo(x, obstacle.y + obstacle.height);
+                            ctx.lineTo(x + obstacle.width/2, obstacle.y);
+                            ctx.lineTo(x + obstacle.width, obstacle.y + obstacle.height);
+                        } else if (obstacle.type === 'spike_down') {
+                            ctx.moveTo(x, obstacle.y);
+                            ctx.lineTo(x + obstacle.width/2, obstacle.y + obstacle.height);
+                            ctx.lineTo(x + obstacle.width, obstacle.y);
+                        }
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.stroke();
+                    }
+                    
+                    ctx.restore();
+                }
+            }
+        }
+
+        function drawCheckpoints() {
+            if (!practiceMode) return;
+            
+            for (let checkpoint of checkpoints) {
+                const x = checkpoint.x - playerProgress;
+                if (x > -checkpoint.width && x < canvas.width) {
+                    ctx.fillStyle = checkpoint.activated ? '#00ff00' : '#ffff00';
+                    ctx.fillRect(x, checkpoint.y, checkpoint.width, checkpoint.height);
+                    
+                    ctx.strokeStyle = '#000000';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(x, checkpoint.y, checkpoint.width, checkpoint.height);
+                }
+            }
+        }
+
+        function drawUI() {
+            document.getElementById('score').textContent = currentPercentage + '%';
+            document.getElementById('attempts').textContent = 'Attempt ' + attempts;
+            document.getElementById('percentage').textContent = 'Best: ' + bestPercentage + '%';
+        }
+
+        // Audio
         let audioContext;
-        
         function initAudio() {
             try {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -205,356 +663,11 @@
             oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
             oscillator.type = type;
             
-            gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+            gainNode.gain.setValueAtTime(0.05, audioContext.currentTime);
             gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
             
             oscillator.start(audioContext.currentTime);
             oscillator.stop(audioContext.currentTime + duration);
-        }
-
-        // Create obstacle
-        function createObstacle(x, y, width, height, type = 'spike') {
-            return {
-                x: x,
-                y: y,
-                width: width,
-                height: height,
-                type: type,
-                color: type === 'spike' ? '#ff6b6b' : '#ffff00'
-            };
-        }
-
-        // Create star
-        function createStar(x, y) {
-            return {
-                x: x,
-                y: y,
-                width: 25,
-                height: 25,
-                rotation: 0,
-                collected: false
-            };
-        }
-
-        // Create particle effect
-        function createParticle(x, y, color) {
-            for (let i = 0; i < 10; i++) {
-                particles.push({
-                    x: x,
-                    y: y,
-                    vx: (Math.random() - 0.5) * 10,
-                    vy: (Math.random() - 0.5) * 10,
-                    life: 1.0,
-                    color: color,
-                    size: Math.random() * 5 + 2
-                });
-            }
-        }
-
-        // Generate level
-        function generateObstacles() {
-            obstacles = [];
-            stars = [];
-            
-            for (let i = 0; i < 50; i++) {
-                const x = 800 + i * 200 + Math.random() * 100;
-                const groundY = canvas.height - 50;
-                
-                // Random obstacle type
-                if (Math.random() < 0.7) {
-                    // Ground spikes
-                    obstacles.push(createObstacle(x, groundY - 50, 30, 50, 'spike'));
-                } else {
-                    // Floating obstacles
-                    const y = groundY - 100 - Math.random() * 150;
-                    obstacles.push(createObstacle(x, y, 40, 40, 'block'));
-                }
-                
-                // Add stars occasionally
-                if (Math.random() < 0.3) {
-                    stars.push(createStar(x + 60, groundY - 80 - Math.random() * 100));
-                }
-            }
-        }
-
-        // Player jump
-        function jump() {
-            if (gameState !== 'playing') return;
-            
-            if (player.grounded || player.y > canvas.height - 200) {
-                player.velocityY = player.jumpPower;
-                player.grounded = false;
-                playSound(800, 0.1, 'square');
-                createParticle(player.x, player.y + player.height, '#00ffff');
-            }
-        }
-
-        // Update player
-        function updatePlayer() {
-            // Apply gravity
-            player.velocityY += player.gravity;
-            player.y += player.velocityY;
-
-            // Ground collision
-            const groundY = canvas.height - 50;
-            if (player.y + player.height > groundY) {
-                player.y = groundY - player.height;
-                player.velocityY = 0;
-                player.grounded = true;
-            }
-
-            // Rotation based on velocity
-            player.rotation += 0.15;
-
-            // Trail effect
-            player.trail.push({ x: player.x + player.width/2, y: player.y + player.height/2 });
-            if (player.trail.length > 10) {
-                player.trail.shift();
-            }
-
-            // Boundary check
-            if (player.y < 0) {
-                player.y = 0;
-                player.velocityY = 0;
-            }
-        }
-
-        // Update obstacles
-        function updateObstacles() {
-            for (let i = obstacles.length - 1; i >= 0; i--) {
-                obstacles[i].x -= gameSpeed;
-                
-                if (obstacles[i].x + obstacles[i].width < 0) {
-                    obstacles.splice(i, 1);
-                    score += 10;
-                }
-            }
-
-            // Update stars
-            for (let i = stars.length - 1; i >= 0; i--) {
-                stars[i].x -= gameSpeed;
-                stars[i].rotation += 0.1;
-                
-                if (stars[i].x + stars[i].width < 0) {
-                    stars.splice(i, 1);
-                }
-            }
-
-            // Add new obstacles
-            if (obstacles.length < 20) {
-                const lastObstacle = obstacles[obstacles.length - 1];
-                const x = lastObstacle ? lastObstacle.x + 200 + Math.random() * 100 : canvas.width;
-                const groundY = canvas.height - 50;
-                
-                if (Math.random() < 0.7) {
-                    obstacles.push(createObstacle(x, groundY - 50, 30, 50, 'spike'));
-                } else {
-                    const y = groundY - 100 - Math.random() * 150;
-                    obstacles.push(createObstacle(x, y, 40, 40, 'block'));
-                }
-
-                if (Math.random() < 0.3) {
-                    stars.push(createStar(x + 60, groundY - 80 - Math.random() * 100));
-                }
-            }
-        }
-
-        // Collision detection
-        function checkCollisions() {
-            // Obstacle collisions
-            for (let obstacle of obstacles) {
-                if (player.x < obstacle.x + obstacle.width &&
-                    player.x + player.width > obstacle.x &&
-                    player.y < obstacle.y + obstacle.height &&
-                    player.y + player.height > obstacle.y) {
-                    
-                    gameOver();
-                    return;
-                }
-            }
-
-            // Star collection
-            for (let star of stars) {
-                if (!star.collected &&
-                    player.x < star.x + star.width &&
-                    player.x + player.width > star.x &&
-                    player.y < star.y + star.height &&
-                    player.y + player.height > star.y) {
-                    
-                    star.collected = true;
-                    score += 50;
-                    playSound(1200, 0.2, 'sine');
-                    createParticle(star.x, star.y, '#ffff00');
-                }
-            }
-        }
-
-        // Update particles
-        function updateParticles() {
-            for (let i = particles.length - 1; i >= 0; i--) {
-                const particle = particles[i];
-                particle.x += particle.vx;
-                particle.y += particle.vy;
-                particle.vy += 0.3; // gravity
-                particle.life -= 0.02;
-                
-                if (particle.life <= 0) {
-                    particles.splice(i, 1);
-                }
-            }
-        }
-
-        // Draw functions
-        function drawBackground() {
-            // Moving background pattern
-            const time = Date.now() * 0.001;
-            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-            gradient.addColorStop(0, `hsl(${220 + Math.sin(time) * 10}, 70%, 20%)`);
-            gradient.addColorStop(1, `hsl(${240 + Math.cos(time) * 10}, 60%, 10%)`);
-            
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Grid pattern
-            ctx.strokeStyle = 'rgba(0, 255, 255, 0.1)';
-            ctx.lineWidth = 1;
-            for (let i = 0; i < canvas.width; i += 50) {
-                ctx.beginPath();
-                ctx.moveTo(i - (score * 0.5) % 50, 0);
-                ctx.lineTo(i - (score * 0.5) % 50, canvas.height);
-                ctx.stroke();
-            }
-        }
-
-        function drawPlayer() {
-            ctx.save();
-            
-            // Draw trail
-            ctx.globalAlpha = 0.5;
-            for (let i = 0; i < player.trail.length; i++) {
-                const trail = player.trail[i];
-                const alpha = i / player.trail.length;
-                ctx.fillStyle = `rgba(0, 255, 255, ${alpha * 0.5})`;
-                ctx.fillRect(trail.x - 3, trail.y - 3, 6, 6);
-            }
-            
-            ctx.globalAlpha = 1;
-            ctx.translate(player.x + player.width/2, player.y + player.height/2);
-            ctx.rotate(player.rotation);
-            
-            // Player body
-            const gradient = ctx.createLinearGradient(-player.width/2, -player.height/2, player.width/2, player.height/2);
-            gradient.addColorStop(0, '#00ffff');
-            gradient.addColorStop(1, '#0099cc');
-            
-            ctx.fillStyle = gradient;
-            ctx.fillRect(-player.width/2, -player.height/2, player.width, player.height);
-            
-            // Player glow effect
-            ctx.shadowColor = '#00ffff';
-            ctx.shadowBlur = 20;
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(-player.width/2, -player.height/2, player.width, player.height);
-            
-            ctx.restore();
-        }
-
-        function drawObstacles() {
-            obstacles.forEach(obstacle => {
-                ctx.save();
-                
-                if (obstacle.type === 'spike') {
-                    // Draw spike
-                    const gradient = ctx.createLinearGradient(obstacle.x, obstacle.y, obstacle.x, obstacle.y + obstacle.height);
-                    gradient.addColorStop(0, '#ff6b6b');
-                    gradient.addColorStop(1, '#cc0000');
-                    
-                    ctx.fillStyle = gradient;
-                    ctx.beginPath();
-                    ctx.moveTo(obstacle.x, obstacle.y + obstacle.height);
-                    ctx.lineTo(obstacle.x + obstacle.width/2, obstacle.y);
-                    ctx.lineTo(obstacle.x + obstacle.width, obstacle.y + obstacle.height);
-                    ctx.closePath();
-                    ctx.fill();
-                    
-                    ctx.shadowColor = '#ff6b6b';
-                    ctx.shadowBlur = 10;
-                    ctx.stroke();
-                } else {
-                    // Draw block
-                    const gradient = ctx.createLinearGradient(obstacle.x, obstacle.y, obstacle.x + obstacle.width, obstacle.y + obstacle.height);
-                    gradient.addColorStop(0, '#ffff00');
-                    gradient.addColorStop(1, '#cccc00');
-                    
-                    ctx.fillStyle = gradient;
-                    ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-                    
-                    ctx.shadowColor = '#ffff00';
-                    ctx.shadowBlur = 5;
-                    ctx.strokeStyle = '#ffffff';
-                    ctx.lineWidth = 2;
-                    ctx.strokeRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-                }
-                
-                ctx.restore();
-            });
-        }
-
-        function drawStars() {
-            stars.forEach(star => {
-                if (star.collected) return;
-                
-                ctx.save();
-                ctx.translate(star.x + star.width/2, star.y + star.height/2);
-                ctx.rotate(star.rotation);
-                
-                ctx.fillStyle = '#ffff00';
-                ctx.shadowColor = '#ffff00';
-                ctx.shadowBlur = 15;
-                
-                // Draw star shape
-                ctx.beginPath();
-                for (let i = 0; i < 5; i++) {
-                    const angle = (i * Math.PI * 2) / 5;
-                    const x = Math.cos(angle) * 12;
-                    const y = Math.sin(angle) * 12;
-                    if (i === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                }
-                ctx.closePath();
-                ctx.fill();
-                
-                ctx.restore();
-            });
-        }
-
-        function drawParticles() {
-            particles.forEach(particle => {
-                ctx.save();
-                ctx.globalAlpha = particle.life;
-                ctx.fillStyle = particle.color;
-                ctx.fillRect(particle.x - particle.size/2, particle.y - particle.size/2, particle.size, particle.size);
-                ctx.restore();
-            });
-        }
-
-        function drawGround() {
-            const groundY = canvas.height - 50;
-            const gradient = ctx.createLinearGradient(0, groundY, 0, canvas.height);
-            gradient.addColorStop(0, '#333333');
-            gradient.addColorStop(1, '#111111');
-            
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, groundY, canvas.width, 50);
-            
-            // Ground details
-            ctx.strokeStyle = '#00ffff';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(0, groundY);
-            ctx.lineTo(canvas.width, groundY);
-            ctx.stroke();
         }
 
         // Game loop
@@ -562,69 +675,70 @@
             if (gameState === 'playing') {
                 updatePlayer();
                 updateObstacles();
-                updateParticles();
                 checkCollisions();
-                
-                // Increase game speed gradually
-                gameSpeed += 0.001;
-                score += 1;
+                drawUI();
             }
 
-            // Clear canvas
+            // Clear and draw
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Draw everything
-            drawBackground();
-            drawGround();
-            
             if (gameState === 'playing') {
+                drawBackground();
+                drawPlatforms();
                 drawObstacles();
-                drawStars();
-                drawParticles();
+                drawCheckpoints();
                 drawPlayer();
             }
 
-            // Update score display
-            scoreElement.textContent = `Score: ${score}`;
-            
             requestAnimationFrame(gameLoop);
         }
 
-        // Game functions
+        // Game control functions
         function startGame() {
             initAudio();
             gameState = 'playing';
-            score = 0;
-            gameSpeed = 5;
-            particles = [];
+            currentPercentage = 0;
+            playerProgress = 0;
+            currentCheckpoint = -1;
             
-            // Reset player
-            player.x = 100;
-            player.y = canvas.height - 150;
+            player.x = 150;
+            player.y = canvas.height - 130;
             player.velocityY = 0;
             player.rotation = 0;
-            player.grounded = false;
-            player.trail = [];
+            player.onGround = true;
             
-            generateObstacles();
+            generateLevel();
             
-            instructionsElement.classList.add('hidden');
-            gameOverElement.classList.add('hidden');
-            
-            playSound(440, 0.3, 'sine');
-        }
-
-        function gameOver() {
-            gameState = 'gameOver';
-            playSound(150, 0.5, 'sawtooth');
-            createParticle(player.x + player.width/2, player.y + player.height/2, '#ff6b6b');
-            
-            finalScoreElement.textContent = `Final Score: ${score}`;
-            gameOverElement.classList.remove('hidden');
+            document.getElementById('instructions').classList.add('hidden');
+            document.getElementById('gameOver').classList.add('hidden');
         }
 
         function restartGame() {
-            startGame();
+            if (practiceMode && currentCheckpoint >= 0) {
+                respawnAtCheckpoint();
+                gameState = 'playing';
+                document.getElementById('gameOver').classList.add('hidden');
+            } else {
+                startGame();
+            }
+        }
+
+        function backToMenu() {
+            gameState = 'menu';
+            document.getElementById('instructions').classList.remove('hidden');
+            document.getElementById('gameOver').classList.add('hidden');
+        }
+
+        function showGameOver() {
+            document.getElementById('finalScore').textContent = currentPercentage + '%';
+            document.getElementById('finalAttempts').textContent = 'Attempts: ' + attempts;
+            document.getElementById('gameOver').classList.remove('hidden');
+        }
+
+        function togglePracticeMode() {
+            practiceMode = !practiceMode;
+            const button = document.querySelector('#instructions .button:last-child');
+            button.textContent = 'PRACTICE MODE: ' + (practiceMode ? 'ON' : 'OFF');
         }
 
         // Event listeners
@@ -636,7 +750,7 @@
             }
         });
 
-        // Start the game loop
+        // Start game loop
         gameLoop();
     </script>
 </body>
