@@ -68,6 +68,7 @@
             padding: 30px;
             border-radius: 15px;
             border: 3px solid #ffff00;
+            display: none;
         }
 
         #instructions h1 {
@@ -219,7 +220,7 @@
         window.addEventListener('resize', resizeCanvas);
 
         // Game variables
-        let gameState = 'menu';
+        let gameState = 'playing';  // Start directly in playing state
         let attempts = 1;
         let bestPercentage = 0;
         let currentPercentage = 0;
@@ -942,10 +943,8 @@
         }
 
         function backToMenu() {
-            gameState = 'menu';
-            document.getElementById('instructions').classList.remove('hidden');
-            document.getElementById('gameOver').classList.add('hidden');
-            document.getElementById('gameWin').classList.add('hidden');
+            // Since we removed the menu, just restart the game
+            startGame();
         }
 
         function showGameOver() {
