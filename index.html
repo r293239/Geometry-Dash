@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geometry Dash Authentic</title>
+    <title>Geometry Dash - Stereo Madness</title>
     <style>
         * {
             margin: 0;
@@ -38,6 +38,17 @@
             z-index: 10;
         }
 
+        #levelTitle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            color: #ffff00;
+        }
+
         #score, #attempts, #percentage {
             font-size: 20px;
             font-weight: bold;
@@ -61,14 +72,20 @@
 
         #instructions h1 {
             color: #ffff00;
-            margin-bottom: 20px;
-            font-size: 32px;
+            margin-bottom: 10px;
+            font-size: 28px;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        #instructions h2 {
+            color: #ff6b6b;
+            margin-bottom: 20px;
+            font-size: 24px;
         }
 
         #instructions p {
             margin: 10px 0;
-            font-size: 18px;
+            font-size: 16px;
         }
 
         .button {
@@ -110,8 +127,39 @@
             font-size: 36px;
         }
 
+        #gameWin {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 10;
+            background: rgba(0,0,0,0.9);
+            padding: 30px;
+            border-radius: 15px;
+            border: 3px solid #00ff00;
+            display: none;
+        }
+
+        #gameWin h2 {
+            color: #00ff00;
+            margin-bottom: 20px;
+            font-size: 36px;
+        }
+
         .hidden {
             display: none !important;
+        }
+
+        #modeIndicator {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 18px;
+            font-weight: bold;
+            color: #ffff00;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
         }
     </style>
 </head>
@@ -119,18 +167,24 @@
     <div id="gameContainer">
         <canvas id="gameCanvas"></canvas>
         
+        <div id="levelTitle">STEREO MADNESS</div>
+        
         <div id="ui">
             <div id="score">0%</div>
             <div id="attempts">Attempt 1</div>
             <div id="percentage">Best: 0%</div>
         </div>
 
+        <div id="modeIndicator">CUBE MODE</div>
+
         <div id="instructions">
             <h1>🎮 GEOMETRY DASH 🎮</h1>
-            <p>🎯 Click or press SPACE to jump</p>
-            <p>⚠️ Avoid spikes, sawblades, and walls</p>
-            <p>🏃‍♂️ Navigate through the obstacle course</p>
-            <p>🎵 Feel the rhythm!</p>
+            <h2>STEREO MADNESS</h2>
+            <p>🎵 The first level of Geometry Dash!</p>
+            <p>🎯 Click or press SPACE to jump/fly</p>
+            <p>⚠️ Cube Mode: Jump over spikes and blocks</p>
+            <p>✈️ Ship Mode: Hold to fly up, release to fall</p>
+            <p>🪙 Collect the 3 secret coins!</p>
             <button class="button" onclick="startGame()">PLAY</button>
             <button class="button" onclick="togglePracticeMode()">PRACTICE MODE: OFF</button>
         </div>
@@ -140,6 +194,14 @@
             <p id="finalScore">0%</p>
             <p id="finalAttempts">Attempts: 1</p>
             <button class="button" onclick="restartGame()">RETRY</button>
+            <button class="button" onclick="backToMenu()">MENU</button>
+        </div>
+
+        <div id="gameWin">
+            <h2>🎉 LEVEL COMPLETE! 🎉</h2>
+            <p>Stereo Madness - 100%</p>
+            <p id="winAttempts">Completed in 1 attempt</p>
+            <p id="coinsCollected">Coins: 0/3</p>
             <button class="button" onclick="backToMenu()">MENU</button>
         </div>
     </div>
@@ -161,12 +223,26 @@
         let attempts = 1;
         let bestPercentage = 0;
         let currentPercentage = 0;
-        let gameSpeed = 6;
+        let gameSpeed = 7;
         let practiceMode = false;
         let checkpoints = [];
         let currentCheckpoint = -1;
+        let coinsCollected = 0;
 
-        // Player object with authentic GD physics
+        // Player modes
+        const MODES = {
+            CUBE: 'cube',
+            SHIP: 'ship'
+        };
+
+        let currentMode = MODES.CUBE;
+        let modeTransitions = [
+            { at: 30, mode: MODES.SHIP },  // 30% - Ship mode starts
+            { at: 48, mode: MODES.CUBE },  // 48% - Back to cube
+            { at: 85, mode: MODES.SHIP }   // 85% - Final ship sequence
+        ];
+
+        // Player object
         const player = {
             x: 150,
             y: 0,
@@ -175,40 +251,32 @@
             velocityY: 0,
             gravity: 1.0,
             jumpPower: -17,
+            shipGravity: 0.7,
+            shipPower: 1.5,
             grounded: false,
             rotation: 0,
             rotationSpeed: 0.2,
             onGround: true,
-            groundY: 0
+            groundY: 0,
+            flying: false
         };
 
-        // Level data - based on actual GD obstacle patterns
-        let levelLength = 2000; // Level progress units
+        // Level progress
+        let levelLength = 3000; // Stereo Madness length
         let playerProgress = 0;
         let obstacles = [];
         let platforms = [];
-        let decorations = [];
+        let coins = [];
 
-        // Authentic obstacle types from GD
-        const obstacleTypes = {
-            SPIKE_UP: 'spike_up',
-            SPIKE_DOWN: 'spike_down',
-            SPIKE_LEFT: 'spike_left', 
-            SPIKE_RIGHT: 'spike_right',
-            SAWBLADE: 'sawblade',
-            BLOCK: 'block',
-            PLATFORM: 'platform'
-        };
-
-        // Create level based on authentic GD patterns
-        function generateLevel() {
+        // Authentic Stereo Madness level data
+        function generateStereoMadness() {
             obstacles = [];
             platforms = [];
-            decorations = [];
+            coins = [];
             
             const groundY = canvas.height - 100;
             
-            // Create ground platforms
+            // Create ground platforms throughout the level
             for (let i = 0; i < levelLength; i += 30) {
                 platforms.push({
                     x: i,
@@ -219,133 +287,188 @@
                 });
             }
 
-            // Add authentic GD obstacle patterns
-            let currentX = 200;
+            // CUBE SECTION 1 (0% - 30%)
+            let x = 200;
             
-            while (currentX < levelLength - 200) {
-                const pattern = Math.floor(Math.random() * 8);
-                
-                switch (pattern) {
-                    case 0: // Single spike
-                        obstacles.push(createSpike(currentX, groundY - 30, 'spike_up'));
-                        currentX += 60;
-                        break;
-                        
-                    case 1: // Triple spikes
-                        for (let i = 0; i < 3; i++) {
-                            obstacles.push(createSpike(currentX + i * 30, groundY - 30, 'spike_up'));
-                        }
-                        currentX += 120;
-                        break;
-                        
-                    case 2: // Sawblade
-                        obstacles.push(createSawblade(currentX, groundY - 60, 40));
-                        currentX += 80;
-                        break;
-                        
-                    case 3: // Platform jump
-                        platforms.push({
-                            x: currentX,
-                            y: groundY - 90,
-                            width: 90,
-                            height: 30,
-                            type: 'platform'
-                        });
-                        obstacles.push(createSpike(currentX + 120, groundY - 30, 'spike_up'));
-                        currentX += 180;
-                        break;
-                        
-                    case 4: // Ceiling spikes
-                        for (let i = 0; i < 4; i++) {
-                            obstacles.push(createSpike(currentX + i * 30, 50, 'spike_down'));
-                        }
-                        currentX += 150;
-                        break;
-                        
-                    case 5: // Wall jump pattern
-                        platforms.push({
-                            x: currentX,
-                            y: groundY - 120,
-                            width: 30,
-                            height: 90,
-                            type: 'wall'
-                        });
-                        obstacles.push(createSpike(currentX + 60, groundY - 30, 'spike_up'));
-                        currentX += 120;
-                        break;
-                        
-                    case 6: // Moving sawblade pattern
-                        obstacles.push({
-                            x: currentX,
-                            y: groundY - 120,
-                            width: 35,
-                            height: 35,
-                            type: 'sawblade',
-                            rotation: 0,
-                            moveY: groundY - 120,
-                            moveRange: 90,
-                            moveSpeed: 0.05,
-                            moveDirection: 1
-                        });
-                        currentX += 90;
-                        break;
-                        
-                    case 7: // Block staircase
-                        for (let i = 0; i < 3; i++) {
-                            platforms.push({
-                                x: currentX + i * 45,
-                                y: groundY - 60 - i * 30,
-                                width: 30,
-                                height: 30,
-                                type: 'block'
-                            });
-                        }
-                        currentX += 180;
-                        break;
+            // Opening sequence - simple spikes
+            obstacles.push(createSpike(x, groundY - 30, 'spike_up')); x += 90;
+            obstacles.push(createSpike(x, groundY - 30, 'spike_up')); x += 60;
+            obstacles.push(createSpike(x, groundY - 30, 'spike_up')); x += 90;
+            
+            // Block with spike
+            platforms.push({ x: x, y: groundY - 60, width: 30, height: 30, type: 'block' });
+            obstacles.push(createSpike(x + 60, groundY - 30, 'spike_up')); x += 150;
+            
+            // Triple spike pattern (the famous one!)
+            obstacles.push(createSpike(x, groundY - 30, 'spike_up'));
+            obstacles.push(createSpike(x + 30, groundY - 30, 'spike_up'));
+            obstacles.push(createSpike(x + 60, groundY - 30, 'spike_up')); x += 150;
+            
+            // Platform jump sequence
+            platforms.push({ x: x, y: groundY - 90, width: 60, height: 30, type: 'platform' });
+            obstacles.push(createSpike(x + 90, groundY - 30, 'spike_up')); x += 180;
+            
+            // More spike patterns
+            obstacles.push(createSpike(x, groundY - 30, 'spike_up')); x += 60;
+            obstacles.push(createSpike(x, groundY - 30, 'spike_up')); x += 90;
+            
+            // SHIP SECTION 1 (30% - 48%)
+            x = (levelLength * 0.3); // 30% mark
+            
+            // Ship obstacles - blocks and spikes in air
+            for (let i = 0; i < 15; i++) {
+                const yPos = groundY - 150 - Math.sin(i * 0.8) * 60;
+                if (i % 3 === 0) {
+                    platforms.push({ x: x + i * 40, y: yPos, width: 30, height: 30, type: 'block' });
+                }
+                if (i % 4 === 1) {
+                    obstacles.push(createSpike(x + i * 40, yPos + 60, 'spike_up'));
+                }
+                if (i % 5 === 2) {
+                    obstacles.push(createSpike(x + i * 40, yPos - 30, 'spike_down'));
                 }
             }
 
-            // Add practice mode checkpoints
-            if (practiceMode) {
-                for (let i = 300; i < levelLength; i += 300) {
-                    checkpoints.push({
-                        x: i,
-                        y: groundY - 60,
-                        width: 20,
-                        height: 60,
-                        activated: false
-                    });
+            // FIRST SECRET COIN (50%)
+            coins.push({
+                x: levelLength * 0.5,
+                y: groundY - 120,
+                width: 25,
+                height: 25,
+                collected: false,
+                id: 1
+            });
+
+            // CUBE SECTION 2 (48% - 85%)
+            x = (levelLength * 0.48);
+            
+            // After ship - harder cube section
+            obstacles.push(createSpike(x, groundY - 30, 'spike_up')); x += 45;
+            obstacles.push(createSpike(x, groundY - 30, 'spike_up')); x += 30;
+            obstacles.push(createSpike(x, groundY - 30, 'spike_up')); x += 75;
+            
+            // Step platforms
+            for (let i = 0; i < 4; i++) {
+                platforms.push({ 
+                    x: x + i * 45, 
+                    y: groundY - 60 - i * 30, 
+                    width: 30, 
+                    height: 30, 
+                    type: 'block' 
+                });
+            } x += 240;
+            
+            // SECOND SECRET COIN (70%)
+            coins.push({
+                x: levelLength * 0.7,
+                y: groundY - 180,
+                width: 25,
+                height: 25,
+                collected: false,
+                id: 2
+            });
+            
+            // More challenging patterns
+            obstacles.push(createSpike(x, groundY - 30, 'spike_up'));
+            obstacles.push(createSpike(x + 30, groundY - 30, 'spike_up')); x += 90;
+            
+            platforms.push({ x: x, y: groundY - 90, width: 30, height: 60, type: 'wall' });
+            obstacles.push(createSpike(x + 60, groundY - 30, 'spike_up')); x += 120;
+
+            // FINAL SHIP SECTION (85% - 100%)
+            x = (levelLength * 0.85);
+            
+            // Final ship challenge
+            for (let i = 0; i < 12; i++) {
+                const yPos = groundY - 120 - Math.sin(i * 0.6) * 80;
+                if (i % 2 === 0) {
+                    obstacles.push(createSpike(x + i * 50, yPos + 90, 'spike_up'));
                 }
+                if (i % 3 === 1) {
+                    obstacles.push(createSpike(x + i * 50, yPos - 30, 'spike_down'));
+                }
+                if (i % 4 === 2) {
+                    platforms.push({ x: x + i * 50, y: yPos, width: 30, height: 30, type: 'block' });
+                }
+            }
+
+            // THIRD SECRET COIN (95%)
+            coins.push({
+                x: levelLength * 0.95,
+                y: groundY - 60,
+                width: 25,
+                height: 25,
+                collected: false,
+                id: 3
+            });
+
+            // Practice mode checkpoints
+            if (practiceMode) {
+                checkpoints = [
+                    { x: levelLength * 0.25, y: groundY - 60, activated: false },
+                    { x: levelLength * 0.45, y: groundY - 60, activated: false },
+                    { x: levelLength * 0.65, y: groundY - 60, activated: false },
+                    { x: levelLength * 0.85, y: groundY - 60, activated: false }
+                ];
             }
         }
 
         function createSpike(x, y, direction) {
-            const spike = {
+            return {
                 x: x,
                 y: y,
                 width: 30,
                 height: 30,
                 type: direction,
-                hitbox: { x: x + 5, y: y + 5, width: 20, height: 20 }
-            };
-            return spike;
-        }
-
-        function createSawblade(x, y, size) {
-            return {
-                x: x,
-                y: y,
-                width: size,
-                height: size,
-                type: 'sawblade',
-                rotation: 0,
-                hitbox: { x: x + 5, y: y + 5, width: size - 10, height: size - 10 }
+                hitbox: { x: x + 3, y: y + 3, width: 24, height: 24 }
             };
         }
 
-        // Authentic GD physics
+        // Update game mode based on progress
+        function updateGameMode() {
+            const prevMode = currentMode;
+            
+            for (let transition of modeTransitions) {
+                if (currentPercentage >= transition.at) {
+                    currentMode = transition.mode;
+                }
+            }
+            
+            // Update UI
+            document.getElementById('modeIndicator').textContent = 
+                currentMode === MODES.CUBE ? 'CUBE MODE' : 'SHIP MODE';
+            
+            // Reset player state when switching modes
+            if (prevMode !== currentMode) {
+                if (currentMode === MODES.SHIP) {
+                    player.flying = false;
+                    player.velocityY = 0;
+                }
+            }
+        }
+
+        // Player physics for both modes
         function updatePlayer() {
-            // Apply gravity
+            updateGameMode();
+            
+            if (currentMode === MODES.CUBE) {
+                updateCubePhysics();
+            } else if (currentMode === MODES.SHIP) {
+                updateShipPhysics();
+            }
+            
+            // Update progress
+            playerProgress += gameSpeed;
+            currentPercentage = Math.floor((playerProgress / levelLength) * 100);
+            
+            // Win condition
+            if (playerProgress >= levelLength) {
+                winLevel();
+            }
+        }
+
+        function updateCubePhysics() {
+            // Standard cube physics
             if (!player.onGround) {
                 player.velocityY += player.gravity;
             }
@@ -363,7 +486,6 @@
                     platform.y + platform.height > player.y) {
                     
                     if (player.velocityY > 0 && player.y < platform.y) {
-                        // Landing on platform
                         player.y = platform.y - player.height;
                         player.velocityY = 0;
                         player.onGround = true;
@@ -381,127 +503,156 @@
                 player.groundY = groundY;
             }
 
-            // Rotate player cube
+            // Rotate cube
             if (!player.onGround) {
                 player.rotation += player.rotationSpeed;
             } else {
-                // Snap rotation to nearest 90-degree angle when on ground
                 const targetRotation = Math.round(player.rotation / (Math.PI/2)) * (Math.PI/2);
                 player.rotation += (targetRotation - player.rotation) * 0.3;
             }
+        }
 
-            // Update progress
-            playerProgress += gameSpeed;
-            currentPercentage = Math.floor((playerProgress / levelLength) * 100);
+        function updateShipPhysics() {
+            // Ship physics - gravity always applies
+            if (player.flying) {
+                player.velocityY -= player.shipPower;
+            } else {
+                player.velocityY += player.shipGravity;
+            }
             
-            // Win condition
-            if (playerProgress >= levelLength) {
-                winLevel();
+            // Limit ship velocity
+            player.velocityY = Math.max(-15, Math.min(15, player.velocityY));
+            
+            player.y += player.velocityY;
+
+            // Ship rotation based on velocity
+            player.rotation = player.velocityY * 0.05;
+
+            // Boundary checks
+            if (player.y < 0) {
+                player.y = 0;
+                player.velocityY = Math.max(0, player.velocityY);
+            }
+            
+            const groundY = canvas.height - 100;
+            if (player.y + player.height >= groundY) {
+                player.y = groundY - player.height;
+                player.velocityY = Math.min(0, player.velocityY);
             }
         }
 
-        function updateObstacles() {
-            // Update moving sawblades
-            for (let obstacle of obstacles) {
-                if (obstacle.type === 'sawblade') {
-                    obstacle.rotation += 0.2;
-                    
-                    // Moving sawblade
-                    if (obstacle.moveY !== undefined) {
-                        obstacle.y += obstacle.moveSpeed * obstacle.moveDirection;
-                        if (obstacle.y <= obstacle.moveY - obstacle.moveRange || 
-                            obstacle.y >= obstacle.moveY + obstacle.moveRange) {
-                            obstacle.moveDirection *= -1;
-                        }
-                    }
+        function handleInput() {
+            if (gameState !== 'playing') return;
+            
+            if (currentMode === MODES.CUBE) {
+                // Cube jump
+                if (player.onGround) {
+                    player.velocityY = player.jumpPower;
+                    player.onGround = false;
+                    playSound(523, 0.1);
                 }
+            } else if (currentMode === MODES.SHIP) {
+                // Ship fly
+                player.flying = true;
+                playSound(440, 0.05);
             }
+        }
 
-            // Check checkpoint activation in practice mode
-            if (practiceMode) {
-                for (let checkpoint of checkpoints) {
-                    if (!checkpoint.activated && 
-                        checkpoint.x - playerProgress < player.x + player.width &&
-                        checkpoint.x - playerProgress + checkpoint.width > player.x) {
-                        checkpoint.activated = true;
-                        currentCheckpoint = checkpoints.indexOf(checkpoint);
-                    }
-                }
+        let mouseDown = false;
+        let spaceDown = false;
+
+        function handleInputRelease() {
+            if (currentMode === MODES.SHIP) {
+                player.flying = false;
             }
         }
 
         function checkCollisions() {
-            // Check obstacle collisions
+            // Obstacle collisions
             for (let obstacle of obstacles) {
                 const obsX = obstacle.x - playerProgress;
                 const hitbox = obstacle.hitbox || obstacle;
                 const hitboxX = (obstacle.hitbox ? hitbox.x - playerProgress : obsX);
                 
-                if (hitboxX < player.x + player.width &&
-                    hitboxX + hitbox.width > player.x &&
-                    hitbox.y < player.y + player.height &&
-                    hitbox.y + hitbox.height > player.y) {
+                if (hitboxX < player.x + player.width - 3 &&
+                    hitboxX + hitbox.width > player.x + 3 &&
+                    hitbox.y < player.y + player.height - 3 &&
+                    hitbox.y + hitbox.height > player.y + 3) {
                     
                     crash();
                     return;
                 }
             }
 
-            // Check ceiling collision
+            // Platform collisions for ship mode
+            if (currentMode === MODES.SHIP) {
+                for (let platform of platforms) {
+                    if (platform.type === 'ground') continue;
+                    
+                    const platX = platform.x - playerProgress;
+                    if (platX < player.x + player.width &&
+                        platX + platform.width > player.x &&
+                        platform.y < player.y + player.height &&
+                        platform.y + platform.height > player.y) {
+                        
+                        crash();
+                        return;
+                    }
+                }
+            }
+
+            // Coin collection
+            for (let coin of coins) {
+                if (!coin.collected) {
+                    const coinX = coin.x - playerProgress;
+                    if (coinX < player.x + player.width &&
+                        coinX + coin.width > player.x &&
+                        coin.y < player.y + player.height &&
+                        coin.y + coin.height > player.y) {
+                        
+                        coin.collected = true;
+                        coinsCollected++;
+                        playSound(800, 0.2);
+                    }
+                }
+            }
+
+            // Checkpoint activation
+            if (practiceMode) {
+                for (let checkpoint of checkpoints) {
+                    if (!checkpoint.activated) {
+                        const checkX = checkpoint.x - playerProgress;
+                        if (checkX < player.x + player.width &&
+                            checkX + checkpoint.width > player.x) {
+                            checkpoint.activated = true;
+                            currentCheckpoint = checkpoints.indexOf(checkpoint);
+                            playSound(600, 0.3);
+                        }
+                    }
+                }
+            }
+
+            // Ceiling collision
             if (player.y <= 0) {
                 crash();
-                return;
-            }
-        }
-
-        function jump() {
-            if (gameState !== 'playing') return;
-            
-            if (player.onGround) {
-                player.velocityY = player.jumpPower;
-                player.onGround = false;
-                playSound(523, 0.1); // C5 note
-            }
-        }
-
-        function crash() {
-            gameState = 'gameOver';
-            attempts++;
-            if (currentPercentage > bestPercentage) {
-                bestPercentage = currentPercentage;
-            }
-            playSound(150, 0.5, 'sawtooth');
-            showGameOver();
-        }
-
-        function winLevel() {
-            gameState = 'win';
-            if (100 > bestPercentage) {
-                bestPercentage = 100;
-            }
-            alert('Level Complete! 🎉');
-            backToMenu();
-        }
-
-        function respawnAtCheckpoint() {
-            if (currentCheckpoint >= 0) {
-                const checkpoint = checkpoints[currentCheckpoint];
-                playerProgress = checkpoint.x - 100;
-                player.x = 150;
-                player.y = checkpoint.y - player.height;
-                player.velocityY = 0;
-                player.onGround = true;
-                player.rotation = 0;
             }
         }
 
         // Drawing functions
         function drawBackground() {
-            // Authentic GD background
+            // Stereo Madness background
             const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-            gradient.addColorStop(0, '#87ceeb');
-            gradient.addColorStop(0.7, '#4682b4');
-            gradient.addColorStop(1, '#2f4f4f');
+            
+            // Background color changes based on mode
+            if (currentMode === MODES.SHIP) {
+                gradient.addColorStop(0, '#4a90e2');
+                gradient.addColorStop(0.7, '#2c5aa0');
+                gradient.addColorStop(1, '#1e3a5f');
+            } else {
+                gradient.addColorStop(0, '#87ceeb');
+                gradient.addColorStop(0.7, '#4682b4');
+                gradient.addColorStop(1, '#2f4f4f');
+            }
             
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -532,26 +683,76 @@
             ctx.translate(player.x + player.width/2, player.y + player.height/2);
             ctx.rotate(player.rotation);
             
-            // Authentic cube design
-            ctx.fillStyle = '#ffff00';
-            ctx.fillRect(-player.width/2, -player.height/2, player.width, player.height);
-            
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(-player.width/2, -player.height/2, player.width, player.height);
-            
-            // Inner detail
-            ctx.fillStyle = '#ffee00';
-            ctx.fillRect(-player.width/2 + 3, -player.height/2 + 3, player.width - 6, player.height - 6);
+            if (currentMode === MODES.CUBE) {
+                // Cube design
+                ctx.fillStyle = '#ffff00';
+                ctx.fillRect(-player.width/2, -player.height/2, player.width, player.height);
+                
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(-player.width/2, -player.height/2, player.width, player.height);
+                
+                ctx.fillStyle = '#ffee00';
+                ctx.fillRect(-player.width/2 + 3, -player.height/2 + 3, player.width - 6, player.height - 6);
+                
+            } else if (currentMode === MODES.SHIP) {
+                // Ship design
+                ctx.fillStyle = '#00ff00';
+                ctx.beginPath();
+                ctx.moveTo(-player.width/2, 0);
+                ctx.lineTo(player.width/2, -player.height/3);
+                ctx.lineTo(player.width/3, 0);
+                ctx.lineTo(player.width/2, player.height/3);
+                ctx.closePath();
+                ctx.fill();
+                
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
             
             ctx.restore();
+        }
+
+        function drawObstacles() {
+            for (let obstacle of obstacles) {
+                const x = obstacle.x - playerProgress;
+                if (x > -obstacle.width && x < canvas.width) {
+                    ctx.save();
+                    
+                    ctx.fillStyle = '#ff0000';
+                    ctx.strokeStyle = '#8b0000';
+                    ctx.lineWidth = 2;
+                    
+                    ctx.beginPath();
+                    if (obstacle.type === 'spike_up') {
+                        ctx.moveTo(x, obstacle.y + obstacle.height);
+                        ctx.lineTo(x + obstacle.width/2, obstacle.y);
+                        ctx.lineTo(x + obstacle.width, obstacle.y + obstacle.height);
+                    } else if (obstacle.type === 'spike_down') {
+                        ctx.moveTo(x, obstacle.y);
+                        ctx.lineTo(x + obstacle.width/2, obstacle.y + obstacle.height);
+                        ctx.lineTo(x + obstacle.width, obstacle.y);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    
+                    ctx.restore();
+                }
+            }
         }
 
         function drawPlatforms() {
             for (let platform of platforms) {
                 const x = platform.x - playerProgress;
                 if (x > -platform.width && x < canvas.width) {
-                    ctx.fillStyle = platform.type === 'ground' ? '#8b4513' : '#666666';
+                    if (platform.type === 'ground') {
+                        ctx.fillStyle = '#8b4513';
+                    } else {
+                        ctx.fillStyle = '#666666';
+                    }
+                    
                     ctx.fillRect(x, platform.y, platform.width, platform.height);
                     
                     ctx.strokeStyle = '#000000';
@@ -561,58 +762,33 @@
             }
         }
 
-        function drawObstacles() {
-            for (let obstacle of obstacles) {
-                const x = obstacle.x - playerProgress;
-                if (x > -obstacle.width && x < canvas.width) {
+        function drawCoins() {
+            for (let coin of coins) {
+                if (coin.collected) continue;
+                
+                const x = coin.x - playerProgress;
+                if (x > -coin.width && x < canvas.width) {
                     ctx.save();
+                    ctx.translate(x + coin.width/2, coin.y + coin.height/2);
                     
-                    if (obstacle.type === 'sawblade') {
-                        // Draw authentic sawblade
-                        ctx.translate(x + obstacle.width/2, obstacle.y + obstacle.height/2);
-                        ctx.rotate(obstacle.rotation);
-                        
-                        ctx.fillStyle = '#ff0000';
-                        ctx.beginPath();
-                        const teeth = 12;
-                        const radius = obstacle.width / 2;
-                        
-                        for (let i = 0; i < teeth; i++) {
-                            const angle = (i / teeth) * Math.PI * 2;
-                            const toothRadius = i % 2 === 0 ? radius : radius * 0.7;
-                            const px = Math.cos(angle) * toothRadius;
-                            const py = Math.sin(angle) * toothRadius;
-                            
-                            if (i === 0) ctx.moveTo(px, py);
-                            else ctx.lineTo(px, py);
-                        }
-                        ctx.closePath();
-                        ctx.fill();
-                        
-                        ctx.strokeStyle = '#000000';
-                        ctx.lineWidth = 2;
-                        ctx.stroke();
-                        
-                    } else if (obstacle.type.includes('spike')) {
-                        // Draw authentic spikes
-                        ctx.fillStyle = '#ff0000';
-                        ctx.strokeStyle = '#000000';
-                        ctx.lineWidth = 2;
-                        
-                        ctx.beginPath();
-                        if (obstacle.type === 'spike_up') {
-                            ctx.moveTo(x, obstacle.y + obstacle.height);
-                            ctx.lineTo(x + obstacle.width/2, obstacle.y);
-                            ctx.lineTo(x + obstacle.width, obstacle.y + obstacle.height);
-                        } else if (obstacle.type === 'spike_down') {
-                            ctx.moveTo(x, obstacle.y);
-                            ctx.lineTo(x + obstacle.width/2, obstacle.y + obstacle.height);
-                            ctx.lineTo(x + obstacle.width, obstacle.y);
-                        }
-                        ctx.closePath();
-                        ctx.fill();
-                        ctx.stroke();
-                    }
+                    // Rotating coin
+                    const time = Date.now() * 0.01;
+                    ctx.rotate(time);
+                    
+                    ctx.fillStyle = '#ffd700';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, coin.width/2, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.strokeStyle = '#b8860b';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    
+                    // Coin number
+                    ctx.fillStyle = '#8b4513';
+                    ctx.font = '12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(coin.id.toString(), 0, 4);
                     
                     ctx.restore();
                 }
@@ -624,24 +800,18 @@
             
             for (let checkpoint of checkpoints) {
                 const x = checkpoint.x - playerProgress;
-                if (x > -checkpoint.width && x < canvas.width) {
+                if (x > -20 && x < canvas.width) {
                     ctx.fillStyle = checkpoint.activated ? '#00ff00' : '#ffff00';
-                    ctx.fillRect(x, checkpoint.y, checkpoint.width, checkpoint.height);
+                    ctx.fillRect(x, checkpoint.y, 20, 60);
                     
                     ctx.strokeStyle = '#000000';
                     ctx.lineWidth = 2;
-                    ctx.strokeRect(x, checkpoint.y, checkpoint.width, checkpoint.height);
+                    ctx.strokeRect(x, checkpoint.y, 20, 60);
                 }
             }
         }
 
-        function drawUI() {
-            document.getElementById('score').textContent = currentPercentage + '%';
-            document.getElementById('attempts').textContent = 'Attempt ' + attempts;
-            document.getElementById('percentage').textContent = 'Best: ' + bestPercentage + '%';
-        }
-
-        // Audio
+        // Audio system
         let audioContext;
         function initAudio() {
             try {
@@ -670,11 +840,47 @@
             oscillator.stop(audioContext.currentTime + duration);
         }
 
+        function crash() {
+            gameState = 'gameOver';
+            attempts++;
+            if (currentPercentage > bestPercentage) {
+                bestPercentage = currentPercentage;
+            }
+            playSound(150, 0.5, 'sawtooth');
+            showGameOver();
+        }
+
+        function winLevel() {
+            gameState = 'win';
+            if (100 > bestPercentage) {
+                bestPercentage = 100;
+            }
+            showGameWin();
+        }
+
+        function respawnAtCheckpoint() {
+            if (currentCheckpoint >= 0) {
+                const checkpoint = checkpoints[currentCheckpoint];
+                playerProgress = checkpoint.x - 100;
+                player.x = 150;
+                player.y = checkpoint.y - player.height;
+                player.velocityY = 0;
+                player.onGround = true;
+                player.rotation = 0;
+                player.flying = false;
+            }
+        }
+
+        function drawUI() {
+            document.getElementById('score').textContent = currentPercentage + '%';
+            document.getElementById('attempts').textContent = 'Attempt ' + attempts;
+            document.getElementById('percentage').textContent = 'Best: ' + bestPercentage + '%';
+        }
+
         // Game loop
         function gameLoop() {
             if (gameState === 'playing') {
                 updatePlayer();
-                updateObstacles();
                 checkCollisions();
                 drawUI();
             }
@@ -686,6 +892,7 @@
                 drawBackground();
                 drawPlatforms();
                 drawObstacles();
+                drawCoins();
                 drawCheckpoints();
                 drawPlayer();
             }
@@ -700,17 +907,21 @@
             currentPercentage = 0;
             playerProgress = 0;
             currentCheckpoint = -1;
+            coinsCollected = 0;
+            currentMode = MODES.CUBE;
             
             player.x = 150;
             player.y = canvas.height - 130;
             player.velocityY = 0;
             player.rotation = 0;
             player.onGround = true;
+            player.flying = false;
             
-            generateLevel();
+            generateStereoMadness();
             
             document.getElementById('instructions').classList.add('hidden');
             document.getElementById('gameOver').classList.add('hidden');
+            document.getElementById('gameWin').classList.add('hidden');
         }
 
         function restartGame() {
@@ -727,12 +938,19 @@
             gameState = 'menu';
             document.getElementById('instructions').classList.remove('hidden');
             document.getElementById('gameOver').classList.add('hidden');
+            document.getElementById('gameWin').classList.add('hidden');
         }
 
         function showGameOver() {
             document.getElementById('finalScore').textContent = currentPercentage + '%';
             document.getElementById('finalAttempts').textContent = 'Attempts: ' + attempts;
             document.getElementById('gameOver').classList.remove('hidden');
+        }
+
+        function showGameWin() {
+            document.getElementById('winAttempts').textContent = 'Completed in ' + attempts + ' attempts';
+            document.getElementById('coinsCollected').textContent = 'Coins: ' + coinsCollected + '/3';
+            document.getElementById('gameWin').classList.remove('hidden');
         }
 
         function togglePracticeMode() {
@@ -742,16 +960,51 @@
         }
 
         // Event listeners
-        canvas.addEventListener('click', jump);
+        canvas.addEventListener('mousedown', (e) => {
+            mouseDown = true;
+            handleInput();
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            mouseDown = false;
+            handleInputRelease();
+        });
+
+        canvas.addEventListener('mouseleave', (e) => {
+            mouseDown = false;
+            handleInputRelease();
+        });
+
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space') {
                 e.preventDefault();
-                jump();
+                if (!spaceDown) {
+                    spaceDown = true;
+                    handleInput();
+                }
             }
         });
 
+        document.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                spaceDown = false;
+                handleInputRelease();
+            }
+        });
+
+        // Continuous input handling for ship mode
+        function handleContinuousInput() {
+            if (gameState === 'playing' && currentMode === MODES.SHIP) {
+                if (mouseDown || spaceDown) {
+                    player.flying = true;
+                } else {
+                    player.flying = false;
+                }
+            }
+        }
+
+        setInterval(handleContinuousInput, 16); // 60 FPS
+
         // Start game loop
         gameLoop();
-    </script>
-</body>
-</html>
