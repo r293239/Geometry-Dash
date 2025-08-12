@@ -685,19 +685,20 @@
             ctx.rotate(player.rotation);
             
             if (currentMode === MODES.CUBE) {
-                // Cube design
+                // Cube design - make it more visible
                 ctx.fillStyle = '#ffff00';
                 ctx.fillRect(-player.width/2, -player.height/2, player.width, player.height);
                 
                 ctx.strokeStyle = '#000000';
-                ctx.lineWidth = 2;
+                ctx.lineWidth = 3;
                 ctx.strokeRect(-player.width/2, -player.height/2, player.width, player.height);
                 
+                // Inner detail
                 ctx.fillStyle = '#ffee00';
-                ctx.fillRect(-player.width/2 + 3, -player.height/2 + 3, player.width - 6, player.height - 6);
+                ctx.fillRect(-player.width/2 + 4, -player.height/2 + 4, player.width - 8, player.height - 8);
                 
             } else if (currentMode === MODES.SHIP) {
-                // Ship design
+                // Ship design - make it more visible
                 ctx.fillStyle = '#00ff00';
                 ctx.beginPath();
                 ctx.moveTo(-player.width/2, 0);
@@ -708,11 +709,15 @@
                 ctx.fill();
                 
                 ctx.strokeStyle = '#000000';
-                ctx.lineWidth = 2;
+                ctx.lineWidth = 3;
                 ctx.stroke();
             }
             
             ctx.restore();
+            
+            // Debug: Draw player position as a red dot
+            ctx.fillStyle = 'red';
+            ctx.fillRect(player.x, player.y, 5, 5);
         }
 
         function drawObstacles() {
@@ -761,6 +766,15 @@
                     ctx.strokeRect(x, platform.y, platform.width, platform.height);
                 }
             }
+            
+            // Debug: Show how many platforms we have
+            ctx.fillStyle = 'white';
+            ctx.font = '16px Arial';
+            ctx.fillText('Platforms: ' + platforms.length, 10, 150);
+            ctx.fillText('Obstacles: ' + obstacles.length, 10, 170);
+            ctx.fillText('Player X: ' + Math.round(player.x), 10, 190);
+            ctx.fillText('Player Y: ' + Math.round(player.y), 10, 210);
+            ctx.fillText('Progress: ' + Math.round(playerProgress), 10, 230);
         }
 
         function drawCoins() {
@@ -894,16 +908,13 @@
             // Clear and draw
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Always draw background
+            // Always draw everything
             drawBackground();
-            
-            if (gameState === 'playing') {
-                drawPlatforms();
-                drawObstacles();
-                drawCoins();
-                drawCheckpoints();
-                drawPlayer();
-            }
+            drawPlatforms();
+            drawObstacles();
+            drawCoins();
+            drawCheckpoints();
+            drawPlayer();
 
             requestAnimationFrame(gameLoop);
         }
