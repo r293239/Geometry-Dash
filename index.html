@@ -98,50 +98,112 @@
         const player = {
             x: 150,
             y: canvas.height - 200,
-            width: 40,
-            height: 40,
+            width: 30,
+            height: 30,
             velY: 0,
             jumping: false,
             onGround: true,
-            rotation: 0
+            rotation: 0,
+            mode: 'cube' // cube or ship
         };
         
-        // Ground level
-        const groundY = canvas.height - 100;
+        // Ground level - standard 30px blocks
+        const blockSize = 30;
+        const groundY = canvas.height - blockSize * 3; // 3 blocks from bottom
         
         // Obstacles array
         const obstacles = [];
         
-        // Create initial obstacles (Stereo Madness pattern)
+        // Create authentic Stereo Madness level layout
         function createLevel() {
             obstacles.length = 0; // Clear existing obstacles
             
             let x = 400;
+            const blockH = blockSize;
+            const spikeH = blockSize;
             
-            // Simple spike patterns like Stereo Madness
-            obstacles.push({type: 'spike', x: x, y: groundY - 50, width: 40, height: 50}); x += 200;
-            obstacles.push({type: 'spike', x: x, y: groundY - 50, width: 40, height: 50}); x += 150;
-            obstacles.push({type: 'spike', x: x, y: groundY - 50, width: 40, height: 50}); x += 100;
+            // CUBE SECTION 1 (0% - 29%)
             
-            // Triple spike (famous pattern)
-            obstacles.push({type: 'spike', x: x, y: groundY - 50, width: 40, height: 50});
-            obstacles.push({type: 'spike', x: x + 50, y: groundY - 50, width: 40, height: 50});
-            obstacles.push({type: 'spike', x: x + 100, y: groundY - 50, width: 40, height: 50}); x += 250;
+            // Opening - single spike
+            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 4;
             
-            // Block obstacle
-            obstacles.push({type: 'block', x: x, y: groundY - 100, width: 50, height: 50}); x += 200;
+            // Another single spike  
+            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 3;
             
-            // More spikes
-            obstacles.push({type: 'spike', x: x, y: groundY - 50, width: 40, height: 50}); x += 150;
-            obstacles.push({type: 'spike', x: x, y: groundY - 50, width: 40, height: 50}); x += 200;
+            // Block obstacle (jump onto it)
+            obstacles.push({type: 'block', x: x, y: groundY - blockH, width: blockSize, height: blockH}); x += blockSize * 4;
             
-            // Platform sequence
-            obstacles.push({type: 'platform', x: x, y: groundY - 150, width: 100, height: 30}); x += 200;
-            obstacles.push({type: 'spike', x: x, y: groundY - 50, width: 40, height: 50}); x += 150;
+            // Single spike after block
+            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 2;
             
-            // Final challenges
-            for(let i = 0; i < 5; i++) {
-                obstacles.push({type: 'spike', x: x + i * 120, y: groundY - 50, width: 40, height: 50});
+            // THE FAMOUS TRIPLE SPIKE PATTERN (iconic Stereo Madness moment)
+            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH});
+            obstacles.push({type: 'spike', x: x + blockSize, y: groundY - spikeH, width: blockSize, height: spikeH});
+            obstacles.push({type: 'spike', x: x + blockSize * 2, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 6;
+            
+            // More single spikes with proper spacing
+            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 4;
+            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 3;
+            
+            // Two blocks in a row (staircase start)
+            obstacles.push({type: 'block', x: x, y: groundY - blockH, width: blockSize, height: blockH});
+            obstacles.push({type: 'block', x: x + blockSize, y: groundY - blockH * 2, width: blockSize, height: blockH}); x += blockSize * 5;
+            
+            // Spike after staircase
+            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 4;
+            
+            // Platform jump sequence (classic GD pattern)
+            obstacles.push({type: 'platform', x: x, y: groundY - blockH * 3, width: blockSize * 2, height: blockH}); x += blockSize * 5;
+            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 3;
+            
+            // SHIP SECTION 1 marker (29% - 46%)
+            obstacles.push({type: 'ship_portal', x: x, y: groundY - blockH, width: blockSize, height: blockH * 2}); x += blockSize * 2;
+            
+            // Ship obstacles - blocks and ceiling spikes
+            for(let i = 0; i < 8; i++) {
+                if(i % 2 === 0) {
+                    obstacles.push({type: 'block', x: x + i * blockSize * 2, y: groundY - blockH * 3, width: blockSize, height: blockH});
+                }
+                if(i % 3 === 1) {
+                    obstacles.push({type: 'spike_down', x: x + i * blockSize * 2, y: blockSize * 2, width: blockSize, height: spikeH});
+                }
+            } x += blockSize * 16;
+            
+            // Back to CUBE marker (46%)
+            obstacles.push({type: 'cube_portal', x: x, y: groundY - blockH, width: blockSize, height: blockH * 2}); x += blockSize * 2;
+            
+            // CUBE SECTION 2 (46% - 85%) - Harder patterns
+            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 2;
+            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 3;
+            
+            // Double spike pattern
+            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH});
+            obstacles.push({type: 'spike', x: x + blockSize, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 5;
+            
+            // Block staircase (step pattern)
+            for(let i = 0; i < 4; i++) {
+                obstacles.push({type: 'block', x: x + i * blockSize, y: groundY - blockH * (i + 1), width: blockSize, height: blockH});
+            } x += blockSize * 7;
+            
+            // More challenging spikes
+            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 3;
+            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 2;
+            obstacles.push({type: 'spike', x: x, y: groundY - spikeH, width: blockSize, height: spikeH}); x += blockSize * 4;
+            
+            // FINAL SHIP SECTION marker (85% - 100%)
+            obstacles.push({type: 'ship_portal', x: x, y: groundY - blockH, width: blockSize, height: blockH * 2}); x += blockSize * 2;
+            
+            // Final ship challenge - more dense obstacles
+            for(let i = 0; i < 10; i++) {
+                if(i % 2 === 0) {
+                    obstacles.push({type: 'block', x: x + i * blockSize * 1.5, y: groundY - blockH * 4 + Math.sin(i) * blockH, width: blockSize, height: blockH});
+                }
+                if(i % 3 === 1) {
+                    obstacles.push({type: 'spike_down', x: x + i * blockSize * 1.5, y: blockSize * 2, width: blockSize, height: spikeH});
+                }
+                if(i % 4 === 2) {
+                    obstacles.push({type: 'spike', x: x + i * blockSize * 1.5, y: groundY - spikeH * 2, width: blockSize, height: spikeH});
+                }
             }
         }
         
@@ -152,14 +214,25 @@
         let spacePressed = false;
         
         function jump() {
-            if (player.onGround && gameRunning) {
-                player.velY = -18;
+            if (player.mode === 'cube' && player.onGround && gameRunning) {
+                // Authentic GD cube jump - exactly 3 blocks high (2.1333 blocks precisely)
+                player.velY = -15.5; // This gives approximately 3 block jump height
                 player.jumping = true;
                 player.onGround = false;
+            } else if (player.mode === 'ship' && gameRunning) {
+                // Ship mode - continuous thrust
+                player.velY = Math.max(player.velY - 1.2, -12); // Upward thrust with max speed
             }
         }
         
-        // Event listeners
+        function stopJump() {
+            if (player.mode === 'ship') {
+                // Ship falls when not holding
+                // Natural gravity will take over
+            }
+        }
+        
+        // Event listeners - updated for ship mode
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space' && !spacePressed) {
                 e.preventDefault();
@@ -171,10 +244,29 @@
         document.addEventListener('keyup', (e) => {
             if (e.code === 'Space') {
                 spacePressed = false;
+                stopJump();
             }
         });
         
-        canvas.addEventListener('click', jump);
+        let mousePressed = false;
+        canvas.addEventListener('mousedown', () => {
+            mousePressed = true;
+            jump();
+        });
+        
+        canvas.addEventListener('mouseup', () => {
+            mousePressed = false;
+            stopJump();
+        });
+        
+        // Continuous ship control
+        function handleShipControl() {
+            if (player.mode === 'ship' && gameRunning && (spacePressed || mousePressed)) {
+                jump(); // Continuous thrust while held
+            }
+        }
+        
+        setInterval(handleShipControl, 16); // 60 FPS control
         
         // Game loop
         function update() {
@@ -183,26 +275,58 @@
             // Move camera forward
             cameraX += gameSpeed;
             
-            // Player physics
-            player.velY += 0.8; // gravity
-            player.y += player.velY;
-            
-            // Ground collision
-            if (player.y + player.height >= groundY) {
-                player.y = groundY - player.height;
-                player.velY = 0;
-                player.onGround = true;
-                player.jumping = false;
-                
-                // Snap rotation to nearest 90 degrees
-                player.rotation = Math.round(player.rotation / (Math.PI/2)) * (Math.PI/2);
+            // Check for mode changes based on progress (authentic Stereo Madness)
+            const progress = (cameraX / 3000) * 100;
+            if (progress >= 29 && progress < 46) {
+                player.mode = 'ship';
+            } else if (progress >= 85) {
+                player.mode = 'ship';
             } else {
-                player.onGround = false;
+                player.mode = 'cube';
             }
             
-            // Rotate player when jumping
-            if (player.jumping) {
-                player.rotation += 0.15;
+            // Player physics
+            if (player.mode === 'cube') {
+                // Cube physics
+                player.velY += 0.7; // gravity for cube
+                player.y += player.velY;
+                
+                // Ground collision
+                if (player.y + player.height >= groundY) {
+                    player.y = groundY - player.height;
+                    player.velY = 0;
+                    player.onGround = true;
+                    player.jumping = false;
+                    
+                    // Snap rotation to nearest 90 degrees
+                    player.rotation = Math.round(player.rotation / (Math.PI/2)) * (Math.PI/2);
+                } else {
+                    player.onGround = false;
+                }
+                
+                // Rotate cube when jumping
+                if (player.jumping) {
+                    player.rotation += 0.12;
+                }
+                
+            } else if (player.mode === 'ship') {
+                // Ship physics
+                player.velY += 0.4; // lighter gravity for ship
+                player.y += player.velY;
+                
+                // Ship boundaries
+                if (player.y < blockSize) {
+                    player.y = blockSize;
+                    player.velY = 0;
+                }
+                if (player.y + player.height >= groundY) {
+                    player.y = groundY - player.height;
+                    player.velY = 0;
+                }
+                
+                // Ship rotation based on velocity
+                player.rotation = player.velY * 0.03;
+                player.onGround = false;
             }
             
             // Platform collisions
@@ -224,17 +348,17 @@
             
             // Collision detection
             for (let obs of obstacles) {
-                if (obs.type === 'spike' || obs.type === 'block') {
+                if (obs.type === 'spike' || obs.type === 'block' || obs.type === 'spike_down') {
                     const obsScreenX = obs.x - cameraX;
                     
-                    if (player.x + player.width > obsScreenX + 5 && 
-                        player.x < obsScreenX + obs.width - 5 &&
-                        player.y + player.height > obs.y + 5 && 
-                        player.y < obs.y + obs.height - 5) {
+                    if (player.x + player.width > obsScreenX + 3 && 
+                        player.x < obsScreenX + obs.width - 3 &&
+                        player.y + player.height > obs.y + 3 && 
+                        player.y < obs.y + obs.height - 3) {
                         
                         // Game over
                         gameRunning = false;
-                        document.getElementById('finalProgress').textContent = Math.floor((cameraX / 3000) * 100) + '%';
+                        document.getElementById('finalProgress').textContent = Math.floor(progress) + '%';
                         document.getElementById('gameOver').style.display = 'block';
                         return;
                     }
@@ -242,12 +366,11 @@
             }
             
             // Update progress
-            const progress = Math.floor((cameraX / 3000) * 100);
-            document.getElementById('progress').textContent = progress + '%';
+            document.getElementById('progress').textContent = Math.floor(progress) + '%';
             
             // Win condition
             if (progress >= 100) {
-                alert('Level Complete!');
+                alert('Stereo Madness Complete! 🎉');
                 restart();
             }
         }
